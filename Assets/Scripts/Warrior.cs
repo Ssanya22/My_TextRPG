@@ -8,6 +8,9 @@ public class Warrior : MonoBehaviour
     public int health;
     [Header("Опыт и уровни")]
     public Experience experience; // компонент с опытом
+    [Header("Инвентарь")]
+    public int healthPotions = 3;  // сколько зелий у воина
+    public int maxHealth => 10 + (constitution - 10) / 2;  // максимальное здоровье
 
     /// <summary>Модификатор силы: (сила - 10) / 2</summary>
     public int StrengthModifier => (strength - 10) / 2;
@@ -18,15 +21,15 @@ public class Warrior : MonoBehaviour
 
     void Start()
     {
-        int conModifier = (constitution - 10) / 2;
-        health = 10 + conModifier;
-        Debug.Log($"⚔ Воин создан! СИЛ:{strength}, ТЕЛ:{constitution}, ЛОВ:{dexterity}, HP:{health}");
+        health = maxHealth; 
+        Debug.Log($"⚔ Воин создан! СИЛ:{strength}, ТЕЛ:{constitution}, ЛОВ:{dexterity}, HP:{health}/{maxHealth}");
+
         // Если опыт не назначен, создадим его
-    if (experience == null)
-        experience = GetComponent<Experience>();
-    
-    if (experience == null)
-        Debug.LogWarning("У воина нет компонента Experience!");
+        if (experience == null)
+            experience = GetComponent<Experience>();
+
+        if (experience == null)
+            Debug.LogWarning("У воина нет компонента Experience!");
     }
 
     /// <summary>Выполнить атаку. Возвращает строку с результатом броска.</summary>
@@ -52,5 +55,5 @@ public class Warrior : MonoBehaviour
         return $"HP: {health} | СИЛ: {strength} | ЛОВ: {dexterity}";
     }
 }
-    
+
 

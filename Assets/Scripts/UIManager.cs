@@ -3,10 +3,6 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
 
-/// <summary>
-/// Управляет UI текстовой RPG: лог, поле ввода команд, панель статистики.
-/// Enter отправляет команду. Команды: attack, hit, stats, враг, бей.
-/// </summary>
 public class UIManager : MonoBehaviour
 {
     [Header("Ссылки на UI")]
@@ -18,13 +14,14 @@ public class UIManager : MonoBehaviour
     [Header("Игровая логика")]
     [SerializeField] private Warrior warrior;
 
+    [Header("Боевая система")]        
+    [SerializeField] private List<Enemy> enemies = new List<Enemy>();
+    private Enemy currentEnemy;
+
     [Header("Опции")]
     [Tooltip("Максимум строк в логе (0 = без ограничения)")]
     [SerializeField] private int maxLogLines = 500;
-    [Header("Боевая система")]
-    [SerializeField] private List<Enemy> enemies = new List<Enemy>();
 
-    private Enemy currentEnemy;
     private ScrollRect _scrollRect;
     private RectTransform _contentRect;
     private RectTransform _logRect;
@@ -69,15 +66,13 @@ public class UIManager : MonoBehaviour
         _scrollRect = mainLog != null ? mainLog.GetComponentInParent<ScrollRect>() : null;
         _contentRect = _scrollRect != null ? _scrollRect.content : null;
         _logRect = mainLog != null ? mainLog.rectTransform : null;
-
-        // Очищаем лог от начального текста (если был задан вручную) и добавляем приветствие
+        
         if (mainLog != null) mainLog.text = "";
         AppendLog("Добро пожаловать в текстовую RPG!");
-        AppendLog("Введите команду: attack, hit, stats, враг, бей");
-
+        AppendLog("Введите команду: attack, hit, stats, враг, бей, зелье, где я");
+        
         RefreshStats();
 
-        // Чтобы можно было сразу печатать команды после запуска
         if (inputFieldTMP != null) inputFieldTMP.ActivateInputField();
         if (inputFieldLegacy != null) inputFieldLegacy.ActivateInputField();
     }
@@ -97,7 +92,6 @@ public class UIManager : MonoBehaviour
         else if (inputFieldLegacy != null) inputFieldLegacy.text = value;
     }
 
-    /// <summary>Отправить команду из поля ввода (вызывается по Enter или кнопке).</summary>
     public void SubmitCommand()
     {
         SubmitCommand(GetInputText());
@@ -112,8 +106,6 @@ public class UIManager : MonoBehaviour
 
         ProcessCommand(cmd);
     }
-
-    /// <summary>Обработка одной команды.</summary>
 
     public void ProcessCommand(string cmd)
     {
@@ -137,6 +129,37 @@ public class UIManager : MonoBehaviour
         {
             result = warrior != null ? warrior.GetStatsLine() : "Нет воина в сцене.";
             AppendLog(result);
+        }
+
+        // ====== КОМАНДА ЛЕЧЕНИЯ ======
+        else if (lower == "зелье" || lower == "heal" || lower == "лечиться")
+        {
+            if (warrior == null)
+            {
+                AppendLog("Нет воина в сцене.");
+            }
+            else if (warrior.healthPotions <= 0)
+            {
+                AppendLog("🧪 У тебя нет зелий! Найди или купи.");
+            }
+            else if (warrior.health >= warrior.maxHealth)
+            {
+                AppendLog("❤️ У тебя и так полное здоровье!");
+            }
+            else
+            {
+                warrior.healthPotions--;
+                
+                int healAmount = 10;
+                warrior.health += healAmount;
+                
+                if (warrior.health > warrior.maxHealth)
+                    warrior.health = warrior.maxHealth;
+                    
+                AppendLog($"🧪 Ты выпил зелье! Осталось зелий: {warrior.healthPotions}");
+                AppendLog($"❤️ Восстановлено {healAmount} HP. Теперь HP: {warrior.health}/{warrior.maxHealth}");
+                RefreshStats();
+            }
         }
 
         // ====== КОМАНДЫ ДЛЯ РАБОТЫ СО ВРАГАМИ ======
@@ -194,9 +217,8 @@ public class UIManager : MonoBehaviour
             }
             else if (!currentEnemy.IsAlive())
             {
-                AppendLog($"Враг {currentEnemy.enemyName} уже повержен!");
+                AppendLog($"👺 Враг {currentEnemy.enemyName} уже повержен!");
 
-                // Автоматически выбираем следующего живого врага
                 Enemy nextEnemy = null;
                 foreach (Enemy e in enemies)
                 {
@@ -210,47 +232,80 @@ public class UIManager : MonoBehaviour
                 if (nextEnemy != null)
                 {
                     currentEnemy = nextEnemy;
-                    AppendLog($"👺 Автоматически выбран: {currentEnemy.enemyName}");
+                    AppendLog($"Автоматически выбран: {currentEnemy.enemyName}");
                 }
             }
             else
             {
-                // Воин атакует
                 string attackResult = warrior.Attack();
                 AppendLog(attackResult);
 
-                // Враг получает урон
                 int damage = Random.Range(1, 9) + warrior.StrengthModifier;
                 string damageResult = currentEnemy.TakeDamage(damage);
                 AppendLog(damageResult);
 
-                // Если враг умер после удара
                 if (!currentEnemy.IsAlive())
                 {
                     AppendLog($"✨ Вы победили {currentEnemy.enemyName}!");
 
-                    // Добавляем опыт за победу
                     if (warrior != null && warrior.experience != null)
                     {
                         int xpReward = 50;
                         warrior.experience.AddXP(xpReward);
                         AppendLog($"✨ Получено {xpReward} опыта!");
                     }
-
-                    // Удаляем врага из списка (но объект пока оставляем)
-                    // Можно будет потом добавить красивое исчезновение
                 }
                 else
                 {
-                    // Если враг ещё жив, он отвечает
                     string enemyAttack = currentEnemy.Attack();
                     AppendLog(enemyAttack);
 
-                    // Воин получает урон
                     int enemyDamage = Random.Range(1, 7) + currentEnemy.StrengthModifier;
                     string playerDamage = warrior.TakeDamage(enemyDamage);
                     AppendLog(playerDamage);
                 }
+            }
+        }
+
+        // ====== КОМАНДЫ ЛОКАЦИЙ ======
+        else if (lower == "идти лес" || lower == "лес")
+        {
+            LocationManager locMgr = FindObjectOfType<LocationManager>();
+            if (locMgr != null)
+            {
+                locMgr.GoToLocation("Лес");
+                AppendLog("🌳 Ты отправляешься в лес...");
+            }
+            else
+            {
+                AppendLog("Ошибка: LocationManager не найден!");
+            }
+        }
+        else if (lower == "идти таверна" || lower == "таверна")
+        {
+            LocationManager locMgr = FindObjectOfType<LocationManager>();
+            if (locMgr != null)
+            {
+                locMgr.GoToLocation("Таверна");
+                AppendLog("🏠 Ты возвращаешься в таверну...");
+            }
+            else
+            {
+                AppendLog("Ошибка: LocationManager не найден!");
+            }
+        }
+        else if (lower == "где я" || lower == "локация")
+        {
+            LocationManager locMgr = FindObjectOfType<LocationManager>();
+            if (locMgr != null)
+            {
+                string loc = locMgr.GetCurrentLocation();
+                string desc = locMgr.GetLocationDescription();
+                AppendLog($"📍 Ты в: {loc} — {desc}");
+            }
+            else
+            {
+                AppendLog("Ошибка: LocationManager не найден!");
             }
         }
 
@@ -260,19 +315,19 @@ public class UIManager : MonoBehaviour
             AppendLog($"Неизвестная команда: {cmd}");
         }
 
-        // Обновляем статистику и прокручиваем лог
         RefreshStats();
         ScrollLogToBottom();
     }
 
-    /// <summary>Добавить строку в главный лог.</summary>
     public void AppendLog(string message)
     {
         if (mainLog == null) return;
 
         bool wasAtBottom = IsNearBottom();
 
-        mainLog.text += message + "\n";
+        // Конвертируем эмодзи перед добавлением!
+        string convertedMessage = UnicodeConverter.ToUTF32(message);
+        mainLog.text += convertedMessage + "\n";
 
         if (maxLogLines > 0)
         {
@@ -287,14 +342,12 @@ public class UIManager : MonoBehaviour
         if (wasAtBottom) ScrollLogToBottom();
     }
 
-    /// <summary>Обновить панель статистики (HP, сила, ловкость).</summary>
-    /// <summary>Обновить панель статистики (HP, сила, ловкость, уровень, опыт).</summary>
     public void RefreshStats()
     {
         if (statsText == null) return;
         if (warrior == null)
         {
-            statsText.text = "HP: -\nСИЛ: -\nЛОВ: -\nУР: -\nОПЫТ: -/-";
+            statsText.text = "HP: -\nСИЛ: -\nЛОВ: -\nЗелья: -";
             return;
         }
 
@@ -303,12 +356,11 @@ public class UIManager : MonoBehaviour
         {
             xpInfo = $"\nУР: {warrior.experience.level}\nОПЫТ: {warrior.experience.currentXP}/{warrior.experience.xpToNextLevel}";
         }
-        else
-        {
-            xpInfo = "\nУР: -\nОПЫТ: -/-";
-        }
 
-        statsText.text = $"HP: {warrior.health}\nСИЛ: {warrior.strength}\nЛОВ: {warrior.dexterity}{xpInfo}";
+        string stats = $"HP: {warrior.health}/{warrior.maxHealth}\nСИЛ: {warrior.strength}\nЛОВ: {warrior.dexterity}\nЗелья: {warrior.healthPotions}{xpInfo}";
+        
+        // Конвертируем статистику
+        statsText.text = UnicodeConverter.ToUTF32(stats);
     }
 
     private void ScrollLogToBottom()
@@ -327,27 +379,17 @@ public class UIManager : MonoBehaviour
 
     private void RebuildLogContentHeight()
     {
-        // Делает прокрутку стабильной: высота Content/текста = preferredHeight текста
         if (mainLog == null || _logRect == null) return;
 
         mainLog.ForceMeshUpdate();
         float preferred = mainLog.preferredHeight;
 
-        // Подгоняем высоту самого текста
         _logRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, preferred);
 
-        // Подгоняем высоту Content (если он есть) — чуть больше, чтобы был отступ снизу
         if (_contentRect != null)
         {
             _contentRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, preferred + logContentPadding);
         }
-    }
-
-    /// <summary>Установить воина (из кода, если не задан в Inspector).</summary>
-    public void SetWarrior(Warrior w)
-    {
-        warrior = w;
-        RefreshStats();
     }
 
     public void AddEnemy(Enemy enemy)
@@ -356,7 +398,7 @@ public class UIManager : MonoBehaviour
         if (currentEnemy == null)
         {
             currentEnemy = enemy;
-            AppendLog($"👺 Выбран автоматически: {enemy.enemyName}");
+            AppendLog($"👺 Автоматически выбран: {enemy.enemyName}");
         }
     }
 
@@ -370,6 +412,12 @@ public class UIManager : MonoBehaviour
             else
                 currentEnemy = null;
         }
+    }
+
+    public void SetWarrior(Warrior w)
+    {
+        warrior = w;
+        RefreshStats();
     }
 
     private void OnTmpSubmit(string text)

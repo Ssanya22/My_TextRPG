@@ -7,12 +7,19 @@ public class EnemySpawner : MonoBehaviour
     public GameObject goblinPrefab;      // ← public чтобы видеть в инспекторе
     public float spawnInterval = 10f;     // ← public
     public int maxEnemies = 5;            // ← public
-
+    [Header("Локации")]
+    public string currentLocation = "Таверна";  // текущая локация
     private int currentEnemyCount = 0;
 
     void Start()
     {
         StartCoroutine(SpawnRoutine());
+    }
+
+    public void UpdateLocation(string newLocation)
+    {
+        currentLocation = newLocation;
+        Debug.Log($"Спавнер обновил локацию: {currentLocation}");
     }
 
     IEnumerator SpawnRoutine()
@@ -21,7 +28,7 @@ public class EnemySpawner : MonoBehaviour
         {
             yield return new WaitForSeconds(spawnInterval);
             
-            if (currentEnemyCount < maxEnemies)
+            if (currentLocation == "Лес" && currentEnemyCount < maxEnemies)
             {
                 SpawnEnemy();
             }
