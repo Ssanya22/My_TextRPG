@@ -620,18 +620,34 @@ public class UIManager : MonoBehaviour
     }
 
     private void GoToLocation(string location)
+{
+    LocationManager locMgr = FindFirstObjectByType<LocationManager>();
+    if (locMgr != null)
     {
-        LocationManager locMgr = FindFirstObjectByType<LocationManager>();
-        if (locMgr != null)
+        locMgr.GoToLocation(location);
+        
+        // Правильные сообщения для каждой локации
+        switch (location)
         {
-            locMgr.GoToLocation(location);
-            AppendLog(location == "Лес" ? "🌳 Ты отправляешься в лес..." : "🏠 Ты возвращаешься в таверну...");
-        }
-        else
-        {
-            AppendLog("Ошибка: LocationManager не найден!");
+            case "Лес":
+                AppendLog("🌳 Ты отправляешься в лес...");
+                break;
+            case "Горы":
+                AppendLog("🏔️ Ты отправляешься в горы...");
+                break;
+            case "Таверна":
+                AppendLog("🏠 Ты возвращаешься в таверну...");
+                break;
+            default:
+                AppendLog($"📍 Ты перемещаешься в {location}");
+                break;
         }
     }
+    else
+    {
+        AppendLog("Ошибка: LocationManager не найден!");
+    }
+}
 
     private void ShowCurrentLocation()
     {
