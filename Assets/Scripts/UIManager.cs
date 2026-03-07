@@ -258,6 +258,10 @@ public class UIManager : MonoBehaviour
                 ShowCurrentLocation();
                 break;
 
+            case "mountains":
+                GoToLocation("Горы");
+                break;
+
             // ----- ВЫБОР ЦЕЛИ -----
             case "select":
                 if (parsed.TargetIndex > 0 && parsed.TargetIndex <= enemies.Count)
@@ -279,6 +283,34 @@ public class UIManager : MonoBehaviour
                 else
                 {
                     ResurrectWarrior();
+                }
+                break;
+            case "skill":
+                if (warrior.skillPoints <= 0)
+                {
+                    AppendLog("❌ У тебя нет очков навыков!");
+                    break;
+                }
+
+                // Парсим, что именно улучшать
+                if (parsed.Target == "attack")
+                {
+                    if (warrior.SpendSkillPoint("атака"))
+                        AppendLog("⚔️ Урон увеличен!");
+                }
+                else if (parsed.Target == "defense")
+                {
+                    if (warrior.SpendSkillPoint("защита"))
+                        AppendLog("🛡️ Защита увеличена!");
+                }
+                else if (parsed.Target == "crit")
+                {
+                    if (warrior.SpendSkillPoint("крит"))
+                        AppendLog("🔥 Шанс крита увеличен!");
+                }
+                else
+                {
+                    AppendLog("📚 Доступные улучшения: 'атака', 'защита', 'крит'");
                 }
                 break;
 
@@ -396,6 +428,16 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    public bool IsOrcAlive()
+    {
+        foreach (Enemy enemy in enemies)
+        {
+            if (enemy is Orc && enemy.IsAlive())
+                return true;
+        }
+        return false;
+    }
+
     public void SetWarrior(Warrior w)
     {
         warrior = w;
@@ -487,6 +529,45 @@ public class UIManager : MonoBehaviour
         {
             AppendLog("💀 ТЫ УМЕР! Напиши 'воскреснуть' чтобы продолжить.");
             AppendLog("⚰️ Враги больше не появляются, пока ты мёртв.");
+        }
+    }
+
+    private void HandleSkill(ParsedCommand parsed)
+    {
+        if (warrior == null)
+        {
+            AppendLog("❌ Нет воина!");
+            return;
+        }
+
+        if (warrior.skillPoints <= 0)
+        {
+            AppendLog("❌ У тебя нет очков навыков! Сначала повысь уровень.");
+            return;
+        }
+
+        // Если цель не указана — показываем доступные скиллы
+        if (string.IsNullOrEmpty(parsed.Target))
+        {
+            AppendLog("📚 Доступные улучшения:");
+            AppendLog("   • 'улучшить атаку'  — +2 к урону");
+            AppendLog("   • 'улучшить защиту' — -1 к получаемому урону");
+            AppendLog("   • 'улучшить крит'   — +5% к шансу крита");
+            AppendLog($"   Очков навыков: {warrior.skillPoints}");
+            return;
+        }
+
+        // Пытаемся улучшить указанный навык
+        bool success = warrior.SpendSkillPoint(parsed.Target);
+
+        if (success)
+        {
+            AppendLog($"✨ Навык улучшен! {warrior.GetSkillInfo()}");
+            RefreshStats();
+        }
+        else
+        {
+            AppendLog($"❌ Не удалось улучшить '{parsed.Target}'. Попробуй: атаку, защиту или крит.");
         }
     }
 

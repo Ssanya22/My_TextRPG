@@ -17,7 +17,7 @@ public class Enemy : MonoBehaviour
     }
 
     // Враг атакует (кидает 20-гранный кубик + сила)
-    public string Attack()
+    public virtual  string Attack()
     {
         int d20 = Random.Range(1, 21);  // бросок кубика от 1 до 20
         int total = d20 + GetStrengthModifier();

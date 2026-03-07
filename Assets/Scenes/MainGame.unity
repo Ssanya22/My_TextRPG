@@ -149,10 +149,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   goblinPrefab: {fileID: 1293086957934913521, guid: 560fb5520c94e0a48ad701640d399aa3, type: 3}
+  orcPrefab: {fileID: 1895168397383757666, guid: fb467b3128d3d874586075b43c2c3165, type: 3}
+  trollPrefab: {fileID: 6987882290537205359, guid: 98c4c4abaa3f016428fcdef2d98e8a2d, type: 3}
+  goblinChance: 0.5
+  orcChance: 0.3
+  trollChance: 0.2
   spawnInterval: 10
   maxEnemies: 5
-  spawnEnabled: 1
   currentLocation: "\u0422\u0430\u0432\u0435\u0440\u043D\u0430"
+  spawnEnabled: 1
 --- !u!4 &131386625
 Transform:
   m_ObjectHideFlags: 0
@@ -774,6 +779,10 @@ MonoBehaviour:
   health: 0
   experience: {fileID: 791924861}
   healthPotions: 3
+  skillPoints: 0
+  attackBonus: 0
+  defenseBonus: 0
+  critChance: 0
 --- !u!114 &791924859
 MonoBehaviour:
   m_ObjectHideFlags: 0

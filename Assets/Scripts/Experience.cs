@@ -17,7 +17,7 @@ public class Experience : MonoBehaviour
     {
         currentXP += amount;
         Debug.Log($"✨ Получено {amount} опыта! Всего: {currentXP}/{xpToNextLevel}");
-        
+
         // Проверяем, не повысился ли уровень
         while (currentXP >= xpToNextLevel)
         {
@@ -28,18 +28,18 @@ public class Experience : MonoBehaviour
     // Повышение уровня
     void LevelUp()
     {
-        // Забираем потраченный опыт
         currentXP -= xpToNextLevel;
         level++;
-        
-        // Считаем, сколько нужно для следующего уровня
         xpToNextLevel = Mathf.RoundToInt(xpToNextLevel * xpMultiplier);
-        
-        Debug.Log($"🎉 УРОВЕНЬ ПОВЫШЕН! Теперь {level} уровень!");
-        Debug.Log($"🎯 До следующего уровня: {xpToNextLevel} опыта");
-        
-        // Здесь можно добавить вызов события, чтобы другие скрипты знали о повышении уровня
-        // Например, чтобы воин увеличил характеристики
+
+        // Даём очко навыка воину
+        Warrior warrior = GetComponent<Warrior>();
+        if (warrior != null)
+        {
+            warrior.LevelUpSkill();
+        }
+
+        Debug.Log($"🎉 УРОВЕНЬ ПОВЫШЕН! Теперь {level} уровень! До следующего: {xpToNextLevel} опыта");
     }
 
     // Сколько процентов до следующего уровня (для красивого отображения)
