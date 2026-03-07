@@ -25,7 +25,7 @@ public class LocationManager : MonoBehaviour
             Debug.Log($"Ты пришёл в: {currentLocation} — {locations[currentLocation]}");
             
             // Находим спавнер и говорим ему, какая теперь локация
-            EnemySpawner spawner = FindObjectOfType<EnemySpawner>();
+          EnemySpawner spawner = FindFirstObjectByType<EnemySpawner>();
             if (spawner != null)
             {
                 spawner.UpdateLocation(currentLocation);

@@ -27,22 +27,22 @@ public class Enemy : MonoBehaviour
     }
 
     // Враг получает урон
-    public string TakeDamage(int damage)
+    public virtual string TakeDamage(int damage)
+{
+    int oldHealth = health;
+    health -= damage;
+    
+    // Здоровье не может быть меньше 0
+    if (health < 0) health = 0;
+    
+    string result = $"👺 {enemyName} получил {damage} урона! Осталось жизней: {health}";
+    
+    if (health <= 0 && oldHealth > 0)
     {
-        health = health - damage;  // отнимаем здоровье
-
-        // Если здоровье ушло в минус, делаем его ноль
-        if (health < 0) health = 0;
-
-        string result = $"👺 {enemyName} получил {damage} урона! Осталось жизней: {health}";
-
-        // Если враг умер
-        if (health <= 0)
-        {
-            result += $"\n💀 {enemyName} повержен!";
-        }
-
-        return result;
+        result += $"\n💀 {enemyName} повержен!";
+    }
+    
+    return result;
     }
 
     // Проверка: жив ли враг?

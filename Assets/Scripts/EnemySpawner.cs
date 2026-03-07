@@ -7,13 +7,17 @@ public class EnemySpawner : MonoBehaviour
     public GameObject goblinPrefab;      // ← public чтобы видеть в инспекторе
     public float spawnInterval = 10f;     // ← public
     public int maxEnemies = 5;            // ← public
+    public bool spawnEnabled = true; // можно ли спавнить врагов
+
     [Header("Локации")]
     public string currentLocation = "Таверна";  // текущая локация
+
     private int currentEnemyCount = 0;
+    private Coroutine spawnCoroutine;
 
     void Start()
     {
-        StartCoroutine(SpawnRoutine());
+        spawnCoroutine = StartCoroutine(SpawnRoutine());
     }
 
     public void UpdateLocation(string newLocation)
@@ -27,8 +31,9 @@ public class EnemySpawner : MonoBehaviour
         while (true)
         {
             yield return new WaitForSeconds(spawnInterval);
-            
-            if (currentLocation == "Лес" && currentEnemyCount < maxEnemies)
+
+            // Добавляем проверку на spawnEnabled
+            if (spawnEnabled && currentLocation == "Лес" && currentEnemyCount < maxEnemies)
             {
                 SpawnEnemy();
             }
@@ -37,6 +42,8 @@ public class EnemySpawner : MonoBehaviour
 
     void SpawnEnemy()
     {
+        // 🚨 НЕМЕДЛЕННАЯ ПРОВЕРКА — если спавн отключён, выходим
+        if (!spawnEnabled) return;
         if (goblinPrefab == null)
         {
             Debug.LogError("Goblin Prefab не назначен в SpawnManager!");
@@ -45,13 +52,13 @@ public class EnemySpawner : MonoBehaviour
 
         GameObject newGoblin = Instantiate(goblinPrefab);
         Goblin goblin = newGoblin.GetComponent<Goblin>();
-        
+
         if (goblin != null)
         {
             goblin.enemyName = $"Гоблин-{Random.Range(1, 100)}";
             currentEnemyCount++;
-            
-            UIManager ui = FindObjectOfType<UIManager>();
+
+            UIManager ui = FindFirstObjectByType<UIManager>();
             if (ui != null)
             {
                 ui.AddEnemy(goblin);
@@ -64,5 +71,29 @@ public class EnemySpawner : MonoBehaviour
     {
         currentEnemyCount--;
         if (currentEnemyCount < 0) currentEnemyCount = 0;
+    }
+
+    // ====== НОВЫЙ МЕТОД ======
+    public void StopSpawning()
+    {
+        spawnEnabled = false;
+
+        // Если корутина ещё работает — останавливаем её принудительно
+        if (spawnCoroutine != null)
+        {
+            StopCoroutine(spawnCoroutine);
+            spawnCoroutine = null;
+        }
+
+        Debug.Log("🛑 Спавн врагов полностью остановлен.");
+    }
+    public void RestartSpawning()
+    {
+        if (spawnCoroutine == null)
+        {
+            spawnCoroutine = StartCoroutine(SpawnRoutine());
+        }
+        spawnEnabled = true;
+        Debug.Log("▶️ Спавн врагов возобновлён.");
     }
 }

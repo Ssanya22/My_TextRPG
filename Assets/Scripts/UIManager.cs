@@ -14,7 +14,7 @@ public class UIManager : MonoBehaviour
     [Header("Игровая логика")]
     [SerializeField] private Warrior warrior;
 
-    [Header("Боевая система")]        
+    [Header("Боевая система")]
     [SerializeField] private List<Enemy> enemies = new List<Enemy>();
     private Enemy currentEnemy;
 
@@ -22,6 +22,10 @@ public class UIManager : MonoBehaviour
     [Tooltip("Максимум строк в логе (0 = без ограничения)")]
     [SerializeField] private int maxLogLines = 500;
 
+    [Header("Настройки игры")]
+    public bool hardcoreMode = false; // true = перманентная смерть
+    private bool modeSelected = false; // выбран ли режим
+    private bool isDead = false; // жив ли игрок 
     private ScrollRect _scrollRect;
     private RectTransform _contentRect;
     private RectTransform _logRect;
@@ -66,15 +70,27 @@ public class UIManager : MonoBehaviour
         _scrollRect = mainLog != null ? mainLog.GetComponentInParent<ScrollRect>() : null;
         _contentRect = _scrollRect != null ? _scrollRect.content : null;
         _logRect = mainLog != null ? mainLog.rectTransform : null;
-        
+
         if (mainLog != null) mainLog.text = "";
         AppendLog("Добро пожаловать в текстовую RPG!");
-        AppendLog("Введите команду: attack, hit, stats, враг, бей, зелье, где я");
-        
+
+        // ЭТУ СТРОКУ УДАЛИЛИ:
+        // AppendLog("Введите команду: attack, hit, stats, враг, бей, зелье, где я");
+
+        // Вместо неё теперь выбор режима
+        AppendLog("═══════════════════════════════════");
+        AppendLog("⚔️  ВЫБЕРИ РЕЖИМ ИГРЫ  ⚔️");
+        AppendLog("1. Обычный — при смерти можно воскреснуть (потеря 25% опыта)");
+        AppendLog("2. HARDCORE — одна жизнь ☠️");
+        AppendLog("Напиши 'обычный' или 'хардкор' для выбора");
+        AppendLog("═══════════════════════════════════");
+
         RefreshStats();
 
         if (inputFieldTMP != null) inputFieldTMP.ActivateInputField();
         if (inputFieldLegacy != null) inputFieldLegacy.ActivateInputField();
+
+        modeSelected = false;
     }
 
     private void Update() { }
@@ -110,213 +126,170 @@ public class UIManager : MonoBehaviour
     public void ProcessCommand(string cmd)
     {
         if (string.IsNullOrEmpty(cmd)) return;
+        // ====== ВЫБОР РЕЖИМА ПРИ СТАРТЕ ======
+        if (!modeSelected)
+        {
+            string lower = cmd.ToLowerInvariant();
 
-        string lower = cmd.ToLowerInvariant();
-        string result;
-
-        // ====== КОМАНДЫ ВОИНА ======
-        if (lower == "attack" || lower == "атака")
-        {
-            result = warrior != null ? warrior.Attack() : "Нет воина в сцене.";
-            AppendLog(result);
-        }
-        else if (lower == "hit" || lower == "урон" || lower == "damage")
-        {
-            result = warrior != null ? warrior.TakeDamage() : "Нет воина в сцене.";
-            AppendLog(result);
-        }
-        else if (lower == "stats" || lower == "статы")
-        {
-            result = warrior != null ? warrior.GetStatsLine() : "Нет воина в сцене.";
-            AppendLog(result);
-        }
-
-        // ====== КОМАНДА ЛЕЧЕНИЯ ======
-        else if (lower == "зелье" || lower == "heal" || lower == "лечиться")
-        {
-            if (warrior == null)
+            if (lower.Contains("обычный") || lower.Contains("normal") || lower == "1")
             {
-                AppendLog("Нет воина в сцене.");
-            }
-            else if (warrior.healthPotions <= 0)
-            {
-                AppendLog("🧪 У тебя нет зелий! Найди или купи.");
-            }
-            else if (warrior.health >= warrior.maxHealth)
-            {
-                AppendLog("❤️ У тебя и так полное здоровье!");
-            }
-            else
-            {
-                warrior.healthPotions--;
-                
-                int healAmount = 10;
-                warrior.health += healAmount;
-                
-                if (warrior.health > warrior.maxHealth)
-                    warrior.health = warrior.maxHealth;
-                    
-                AppendLog($"🧪 Ты выпил зелье! Осталось зелий: {warrior.healthPotions}");
-                AppendLog($"❤️ Восстановлено {healAmount} HP. Теперь HP: {warrior.health}/{warrior.maxHealth}");
+                hardcoreMode = false;
+                modeSelected = true;
+                AppendLog("✨ Выбран ОБЫЧНЫЙ режим. Удачи в приключениях!");
+                AppendLog("💡 При смерти ты сможешь воскреснуть в таверне.");
                 RefreshStats();
+                return;
             }
+            else if (lower.Contains("хардкор") || lower.Contains("hardcore") || lower == "2")
+            {
+                hardcoreMode = true;
+                modeSelected = true;
+                AppendLog("☠️ ВЫБРАН HARDCORE РЕЖИМ! ☠️");
+                AppendLog("💀 Одна смерть — конец игры. Будь осторожен!");
+                RefreshStats();
+                return;
+            }
+            else
+            {
+                AppendLog("❌ Сначала выбери режим: 'обычный' или 'хардкор'");
+                return;
+            }
+        }
+        if (isDead)
+        {
+            string lower = cmd.ToLowerInvariant();
+
+            if (lower.Contains("воскреснуть") || lower.Contains("ожить"))
+            {
+                ResurrectWarrior();
+            }
+            else
+            {
+                AppendLog("⚰️ Ты мёртв. Напиши 'воскреснуть' чтобы продолжить.");
+            }
+            return;
+        }
+        // ИСПОЛЬЗУЕМ НОВЫЙ ПАРСЕР
+        ParsedCommand parsed = CommandParser.Parse(cmd);
+        parsed.RawInput = cmd;
+
+        // Для отладки - покажем что распарсили
+        Debug.Log($"Парсинг: {parsed}");
+
+        // Если ничего не распознали
+        if (parsed.Action == null)
+        {
+            AppendLog($"❓ Не совсем понял команду '{cmd}'. Попробуй сказать проще, например: 'атакую гоблина' или 'выпью зелье'.");
+            return;
         }
 
-        // ====== КОМАНДЫ ДЛЯ РАБОТЫ СО ВРАГАМИ ======
-        else if (lower == "враг" || lower == "enemy")
+        // ====== ОБРАБОТКА ДЕЙСТВИЙ ======
+        switch (parsed.Action)
         {
-            if (currentEnemy != null)
-                AppendLog(currentEnemy.GetStats());
-            else
-                AppendLog("Нет выбранного врага. Введите 'враги' чтобы увидеть список.");
-        }
-        else if (lower == "враги" || lower == "enemies")
-        {
-            if (enemies.Count == 0)
-            {
-                AppendLog("Нет врагов на сцене.");
-            }
-            else
-            {
-                AppendLog($"👺 Враги ({enemies.Count}):");
-                for (int i = 0; i < enemies.Count; i++)
+            // ----- АТАКА -----
+            case "attack":
+                // Если явно указан номер
+                if (parsed.TargetIndex > 0 && parsed.TargetIndex <= enemies.Count)
                 {
-                    string status = enemies[i].IsAlive() ? "жив" : "мертв";
-                    AppendLog($"{i + 1}. {enemies[i].enemyName} (HP: {enemies[i].health}) - {status}");
+                    currentEnemy = enemies[parsed.TargetIndex - 1];
+                    AppendLog($"👺 Выбран враг: {currentEnemy.enemyName}");
+                    PerformAttack();
                 }
-                AppendLog($"Текущий выбран: {(currentEnemy != null ? currentEnemy.enemyName : "никто")}");
-            }
-        }
-        else if (lower.StartsWith("выбрать "))
-        {
-            string numStr = lower.Replace("выбрать ", "").Trim();
-            if (int.TryParse(numStr, out int index))
-            {
-                if (index >= 1 && index <= enemies.Count)
+                // Если сказано "этого", "текущего" и есть выбранный враг
+                else if (parsed.IsCurrentTarget && currentEnemy != null)
                 {
-                    currentEnemy = enemies[index - 1];
-                    AppendLog($"👺 Выбран враг: {currentEnemy.enemyName} (HP: {currentEnemy.health})");
+                    PerformAttack();
+                }
+                // Если просто "атакую" и есть выбранный враг
+                else if (currentEnemy != null && parsed.Target == "enemy")
+                {
+                    PerformAttack();
+                }
+                // Если есть выбранный враг (запасной вариант)
+                else if (currentEnemy != null)
+                {
+                    PerformAttack();
+                }
+                // Если нет врага, но есть индекс
+                else if (parsed.TargetIndex > 0)
+                {
+                    AppendLog($"👺 Враг с номером {parsed.TargetIndex} не найден. Напиши 'враги' для списка.");
+                }
+                // Если ничего не подошло
+                else
+                {
+                    AppendLog("👺 Кого атаковать? Напиши 'враги' для списка или выбери номер.");
+                }
+                break;
+
+            // ----- ЛЕЧЕНИЕ -----
+            case "heal":
+                PerformHeal();
+                break;
+
+            // ----- СТАТИСТИКА -----
+            case "stats":
+                AppendLog(warrior.GetStatsLine());
+                break;
+
+            // ----- СПИСОК ВРАГОВ -----
+            case "enemies":
+                ShowEnemyList();
+                break;
+
+            // ----- ИНФО О ВРАГЕ -----
+            case "enemy_info":
+                if (currentEnemy != null)
+                    AppendLog(currentEnemy.GetStats());
+                else
+                    AppendLog("Нет выбранного врага.");
+                break;
+
+            // ----- ЛОКАЦИИ -----
+            case "forest":
+                GoToLocation("Лес");
+                break;
+
+            case "tavern":
+                GoToLocation("Таверна");
+                break;
+
+            case "location":
+                ShowCurrentLocation();
+                break;
+
+            // ----- ВЫБОР ЦЕЛИ -----
+            case "select":
+                if (parsed.TargetIndex > 0 && parsed.TargetIndex <= enemies.Count)
+                {
+                    currentEnemy = enemies[parsed.TargetIndex - 1];
+                    AppendLog($"👺 Выбран враг: {currentEnemy.enemyName}");
                 }
                 else
                 {
-                    AppendLog($"Нет врага с номером {index}. Всего врагов: {enemies.Count}");
+                    AppendLog("Укажи номер врага, например: 'выбрать второго'");
                 }
-            }
-            else
-            {
-                AppendLog("Нужно ввести номер врага. Например: выбрать 2");
-            }
-        }
+                break;
 
-        // ====== БОЕВАЯ КОМАНДА ======
-        else if (lower == "атаковать врага" || lower == "бей" || lower == "attack enemy")
-        {
-            if (currentEnemy == null)
-            {
-                AppendLog("Нет выбранного врага! Сначала выбери: 'враги' потом 'выбрать N'");
-            }
-            else if (!currentEnemy.IsAlive())
-            {
-                AppendLog($"👺 Враг {currentEnemy.enemyName} уже повержен!");
-
-                Enemy nextEnemy = null;
-                foreach (Enemy e in enemies)
+            case "resurrect":
+                if (warrior.health > 0)
                 {
-                    if (e.IsAlive())
-                    {
-                        nextEnemy = e;
-                        break;
-                    }
-                }
-
-                if (nextEnemy != null)
-                {
-                    currentEnemy = nextEnemy;
-                    AppendLog($"Автоматически выбран: {currentEnemy.enemyName}");
-                }
-            }
-            else
-            {
-                string attackResult = warrior.Attack();
-                AppendLog(attackResult);
-
-                int damage = Random.Range(1, 9) + warrior.StrengthModifier;
-                string damageResult = currentEnemy.TakeDamage(damage);
-                AppendLog(damageResult);
-
-                if (!currentEnemy.IsAlive())
-                {
-                    AppendLog($"✨ Вы победили {currentEnemy.enemyName}!");
-
-                    if (warrior != null && warrior.experience != null)
-                    {
-                        int xpReward = 50;
-                        warrior.experience.AddXP(xpReward);
-                        AppendLog($"✨ Получено {xpReward} опыта!");
-                    }
+                    AppendLog("Ты ещё жив! Зачем воскресать?");
                 }
                 else
                 {
-                    string enemyAttack = currentEnemy.Attack();
-                    AppendLog(enemyAttack);
-
-                    int enemyDamage = Random.Range(1, 7) + currentEnemy.StrengthModifier;
-                    string playerDamage = warrior.TakeDamage(enemyDamage);
-                    AppendLog(playerDamage);
+                    ResurrectWarrior();
                 }
-            }
-        }
+                break;
 
-        // ====== КОМАНДЫ ЛОКАЦИЙ ======
-        else if (lower == "идти лес" || lower == "лес")
-        {
-            LocationManager locMgr = FindObjectOfType<LocationManager>();
-            if (locMgr != null)
-            {
-                locMgr.GoToLocation("Лес");
-                AppendLog("🌳 Ты отправляешься в лес...");
-            }
-            else
-            {
-                AppendLog("Ошибка: LocationManager не найден!");
-            }
-        }
-        else if (lower == "идти таверна" || lower == "таверна")
-        {
-            LocationManager locMgr = FindObjectOfType<LocationManager>();
-            if (locMgr != null)
-            {
-                locMgr.GoToLocation("Таверна");
-                AppendLog("🏠 Ты возвращаешься в таверну...");
-            }
-            else
-            {
-                AppendLog("Ошибка: LocationManager не найден!");
-            }
-        }
-        else if (lower == "где я" || lower == "локация")
-        {
-            LocationManager locMgr = FindObjectOfType<LocationManager>();
-            if (locMgr != null)
-            {
-                string loc = locMgr.GetCurrentLocation();
-                string desc = locMgr.GetLocationDescription();
-                AppendLog($"📍 Ты в: {loc} — {desc}");
-            }
-            else
-            {
-                AppendLog("Ошибка: LocationManager не найден!");
-            }
-        }
-
-        // ====== НЕИЗВЕСТНАЯ КОМАНДА ======
-        else
-        {
-            AppendLog($"Неизвестная команда: {cmd}");
+            default:
+                AppendLog($"❓ Не знаю, что делать с командой '{cmd}'. Попробуй по-другому.");
+                break;
         }
 
         RefreshStats();
         ScrollLogToBottom();
+
     }
 
     public void AppendLog(string message)
@@ -357,9 +330,18 @@ public class UIManager : MonoBehaviour
             xpInfo = $"\nУР: {warrior.experience.level}\nОПЫТ: {warrior.experience.currentXP}/{warrior.experience.xpToNextLevel}";
         }
 
-        string stats = $"HP: {warrior.health}/{warrior.maxHealth}\nСИЛ: {warrior.strength}\nЛОВ: {warrior.dexterity}\nЗелья: {warrior.healthPotions}{xpInfo}";
-        
-        // Конвертируем статистику
+        string modeText = "";
+        if (modeSelected)
+        {
+            modeText = hardcoreMode ? "\n☠️ HARDCORE" : "\n✨ Обычный";
+        }
+        else
+        {
+            modeText = "\n⚔️ Выбери режим";
+        }
+
+        string stats = $"HP: {warrior.health}/{warrior.maxHealth}\nСИЛ: {warrior.strength}\nЛОВ: {warrior.dexterity}\nЗелья: {warrior.healthPotions}{xpInfo}{modeText}";
+
         statsText.text = UnicodeConverter.ToUTF32(stats);
     }
 
@@ -419,7 +401,268 @@ public class UIManager : MonoBehaviour
         warrior = w;
         RefreshStats();
     }
+    private void PerformAttack()
+    {
+        // ====== 1. ПРОВЕРКА: есть ли враг и жив ли он ======
+        if (currentEnemy == null)
+        {
+            AppendLog("👺 Нет выбранного врага. Напиши 'враги' для списка.");
+            return;
+        }
 
+        if (!currentEnemy.IsAlive())
+        {
+            AppendLog($"👺 {currentEnemy.enemyName} уже мёртв. Выбери другого.");
+            return;
+        }
+
+        // ====== 2. ПРОВЕРКА: жив ли воин ПЕРЕД атакой ======
+        if (warrior.health <= 0)
+        {
+            // Если воин уже мёртв — обрабатываем смерть
+            HandleDeath();
+            return;
+        }
+
+        // ====== 3. ВОИН АТАКУЕТ ======
+        string attackResult = warrior.Attack();
+        AppendLog(attackResult);
+
+        // Рассчитываем урон воина
+        int damage = Random.Range(1, 9) + warrior.StrengthModifier;
+        string damageResult = currentEnemy.TakeDamage(damage);
+        AppendLog(damageResult);
+
+        // ====== 4. ПРОВЕРКА: умер ли враг ПОСЛЕ атаки ======
+        if (!currentEnemy.IsAlive())
+        {
+            // Враг мёртв — победа, опыт, возможно новый враг
+            AppendLog($"✨ Вы победили {currentEnemy.enemyName}!");
+
+            if (warrior.experience != null)
+            {
+                int xpReward = 50;
+                warrior.experience.AddXP(xpReward);
+                AppendLog($"✨ Получено {xpReward} опыта!");
+            }
+
+            // Враг удаляется из списка (можно добавить позже)
+        }
+        else // ====== 5. ВРАГ ВЫЖИЛ И ОТВЕЧАЕТ ======
+        {
+            string enemyAttack = currentEnemy.Attack();
+            AppendLog(enemyAttack);
+
+            int enemyDamage = Random.Range(1, 7) + currentEnemy.StrengthModifier;
+            string playerDamage = warrior.TakeDamage(enemyDamage);
+            AppendLog(playerDamage);
+
+            // ====== 6. ПРОВЕРКА: не умер ли воин ПОСЛЕ контратаки ======
+            if (warrior.health <= 0)
+            {
+                // Если воин умер от контратаки — обрабатываем смерть
+                HandleDeath();
+            }
+        }
+    }
+    private void HandleDeath()
+    {
+        isDead = true;
+
+        // 🛑 СНАЧАЛА останавливаем спавн
+        EnemySpawner spawner = FindFirstObjectByType<EnemySpawner>();
+        if (spawner != null)
+        {
+            spawner.StopSpawning();
+        }
+
+        // 💀 ПОТОМ сообщения о смерти
+        if (hardcoreMode)
+        {
+            AppendLog("☠️ GAME OVER — Ты умер в хардкорном режиме!");
+            AppendLog("🔄 Перезапуск через 3 секунды...");
+            StartCoroutine(RestartAfterDelay(3f));
+        }
+        else
+        {
+            AppendLog("💀 ТЫ УМЕР! Напиши 'воскреснуть' чтобы продолжить.");
+            AppendLog("⚰️ Враги больше не появляются, пока ты мёртв.");
+        }
+    }
+
+    private void PerformHeal()
+    {
+        if (warrior.health <= 0)
+        {
+            AppendLog("💀 Ты мёртв и не можешь лечиться. Игра окончена?");
+            return;
+        }
+
+        if (warrior.healthPotions <= 0)
+        {
+            AppendLog("🧪 У тебя нет зелий! Найди или купи.");
+            return;
+        }
+
+        if (warrior.health >= warrior.maxHealth)
+        {
+            AppendLog("❤️ У тебя и так полное здоровье!");
+            return;
+        }
+
+        warrior.healthPotions--;
+        int healAmount = 10;
+        warrior.health += healAmount;
+
+        if (warrior.health > warrior.maxHealth)
+            warrior.health = warrior.maxHealth;
+
+        AppendLog($"🧪 Ты выпил зелье! Осталось зелий: {warrior.healthPotions}");
+        AppendLog($"❤️ Восстановлено {healAmount} HP. Теперь HP: {warrior.health}/{warrior.maxHealth}");
+    }
+
+    private void ShowEnemyList()
+    {
+        if (enemies.Count == 0)
+        {
+            AppendLog("Нет врагов на сцене.");
+            return;
+        }
+
+        AppendLog($"👺 Враги ({enemies.Count}):");
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            string status = enemies[i].IsAlive() ? "жив" : "мертв";
+            AppendLog($"{i + 1}. {enemies[i].enemyName} (HP: {enemies[i].health}) - {status}");
+        }
+        AppendLog($"Текущий выбран: {(currentEnemy != null ? currentEnemy.enemyName : "никто")}");
+    }
+
+    private void GoToLocation(string location)
+    {
+        LocationManager locMgr = FindFirstObjectByType<LocationManager>();
+        if (locMgr != null)
+        {
+            locMgr.GoToLocation(location);
+            AppendLog(location == "Лес" ? "🌳 Ты отправляешься в лес..." : "🏠 Ты возвращаешься в таверну...");
+        }
+        else
+        {
+            AppendLog("Ошибка: LocationManager не найден!");
+        }
+    }
+
+    private void ShowCurrentLocation()
+    {
+        LocationManager locMgr = FindFirstObjectByType<LocationManager>();
+        if (locMgr != null)
+        {
+            string loc = locMgr.GetCurrentLocation();
+            string desc = locMgr.GetLocationDescription();
+            AppendLog($"📍 Ты в: {loc} — {desc}");
+        }
+        else
+        {
+            AppendLog("Ошибка: LocationManager не найден!");
+        }
+    }
+
+    private void ResurrectWarrior()
+    {
+        // 🧠 ЕСЛИ ХАРДКОР — ВОСКРЕШЕНИЯ НЕТ
+        if (hardcoreMode)
+        {
+            AppendLog("☠️ GAME OVER — Ты умер в хардкорном режиме!");
+            AppendLog("🔄 Перезапуск через 3 секунды...");
+            StartCoroutine(RestartAfterDelay(3f));
+            return;
+        }
+
+        // 🧠 ЕСЛИ УЖЕ ЖИВ
+        if (warrior.health > 0)
+        {
+            AppendLog("Ты ещё жив! Зачем воскресать?");
+            return;
+        }
+
+        // 🧠 ОБЫЧНЫЙ РЕЖИМ — ВОСКРЕШАЕМ
+        isDead = false;  // ← сбрасываем флаг смерти
+
+        // Возвращаем в таверну
+        GoToLocation("Таверна");
+
+        // Штраф: теряем 25% опыта
+        if (warrior.experience != null)
+        {
+            int lostXP = warrior.experience.currentXP / 4;
+            warrior.experience.currentXP -= lostXP;
+            if (warrior.experience.currentXP < 0)
+                warrior.experience.currentXP = 0;
+
+            AppendLog($"💔 При воскрешении ты потерял {lostXP} опыта!");
+        }
+
+        // Восстанавливаем половину здоровья
+        warrior.health = warrior.maxHealth / 2;
+
+        // Включаем спавн обратно
+        EnemySpawner spawner = FindFirstObjectByType<EnemySpawner>();
+        if (spawner != null)
+        {
+            spawner.RestartSpawning();
+        }
+
+        AppendLog($"✨ Ты очнулся в таверне с {warrior.health}/{warrior.maxHealth} HP.");
+        AppendLog("💡 Будь осторожнее в следующий раз!");
+
+        RefreshStats();
+    }
+
+    private void RestartGame()
+    {
+        isDead = false;
+        // Сбрасываем воина
+        warrior.health = warrior.maxHealth;
+        warrior.healthPotions = 3;
+        if (warrior.experience != null)
+        {
+            warrior.experience.level = 1;
+            warrior.experience.currentXP = 0;
+            warrior.experience.xpToNextLevel = 100;
+        }
+
+        // Очищаем врагов
+        foreach (Enemy enemy in enemies)
+        {
+            Destroy(enemy.gameObject);
+        }
+        enemies.Clear();
+        currentEnemy = null;
+
+        // Возвращаем в таверну
+        GoToLocation("Таверна");
+
+        // Очищаем лог
+        if (mainLog != null) mainLog.text = "";
+
+        // Показываем приветствие и выбор режима
+        AppendLog("Добро пожаловать в текстовую RPG!");
+        AppendLog("═══════════════════════════════════");
+        AppendLog("⚔️  ВЫБЕРИ РЕЖИМ ИГРЫ  ⚔️");
+        AppendLog("1. Обычный — при смерти можно воскреснуть (потеря 25% опыта)");
+        AppendLog("2. HARDCORE — одна жизнь ☠️");
+        AppendLog("Напиши 'обычный' или 'хардкор' для выбора");
+        AppendLog("═══════════════════════════════════");
+
+        modeSelected = false;
+        RefreshStats();
+    }
+
+    private System.Collections.IEnumerator RestartAfterDelay(float seconds)
+    {
+        yield return new WaitForSeconds(seconds);  // ждём указанное количество секунд
+        RestartGame();  // вызываем перезапуск
+    }
     private void OnTmpSubmit(string text)
     {
         SubmitCommand(text);

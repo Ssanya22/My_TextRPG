@@ -42,11 +42,24 @@ public class Warrior : MonoBehaviour
 
     /// <summary>Получить урон. Возвращает строку с результатом.</summary>
     public string TakeDamage(int amount = -1)
+{
+    if (amount < 0) amount = Random.Range(2, 9);
+    
+    int oldHealth = health; // запоминаем для сообщения
+    health -= amount;
+    
+    // Важно: здоровье не может быть меньше 0!
+    if (health < 0) health = 0;
+    
+    string result = $"💥 Получено {amount} урона! Осталось HP: {health}";
+    
+    // Если умерли
+    if (health <= 0 && oldHealth > 0)
     {
-        if (amount < 0) amount = Random.Range(2, 9);
-        health -= amount;
-        if (health < 0) health = 0;
-        return $"💥 Получено {amount} урона! Осталось HP: {health}";
+        result += "\n💀 Воин пал в бою!";
+    }
+    
+    return result;
     }
 
     /// <summary>Краткая сводка статов для UI</summary>
