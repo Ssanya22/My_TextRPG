@@ -4,18 +4,17 @@ using System.Collections;
 public class EnemySpawner : MonoBehaviour
 {
     [Header("Настройки спавна")]
-    public GameObject goblinPrefab;      // префаб обычного гоблина
-    public GameObject orcPrefab;         // префаб орка
-    public GameObject trollPrefab;       // префаб тролля
+    public GameObject goblinPrefab;
+    public GameObject orcPrefab;
+    public GameObject trollPrefab;
 
     [Header("Настройки времени")]
-    public float spawnInterval = 10f;     // интервал между спавнами (сек)
-    public int maxEnemies = 5;            // максимум врагов одновременно
+    public float spawnInterval = 10f;
+    public int maxEnemies = 5;
 
     [Header("Локации")]
-    public string currentLocation = "Таверна";  // текущая локация
+    public string currentLocation = "Таверна";
 
-    // Флаг для включения/выключения спавна
     public bool spawnEnabled = true; 
 
     private int currentEnemyCount = 0;
@@ -38,7 +37,6 @@ public class EnemySpawner : MonoBehaviour
         {
             yield return new WaitForSeconds(spawnInterval);
 
-            // Проверяем, можно ли спавнить
             if (spawnEnabled && currentLocation != "Таверна" && currentEnemyCount < maxEnemies)
             {
                 SpawnEnemy();
@@ -53,11 +51,9 @@ public class EnemySpawner : MonoBehaviour
         GameObject newEnemyPrefab = null;
         UIManager ui = FindFirstObjectByType<UIManager>();
 
-        // ====== ВЫБОР ВРАГА В ЗАВИСИМОСТИ ОТ ЛОКАЦИИ ======
         switch (currentLocation)
         {
             case "Лес":
-                // Проверяем, есть ли уже живой орк через метод UIManager
                 bool orcExists = false;
                 if (ui != null)
                 {
@@ -66,12 +62,10 @@ public class EnemySpawner : MonoBehaviour
 
                 if (orcExists)
                 {
-                    // Если орк уже есть — спавним только гоблинов
                     newEnemyPrefab = goblinPrefab;
                 }
                 else
                 {
-                    // Если орка нет — 10% на орка, 90% на гоблина
                     newEnemyPrefab = Random.value < 0.1f ? orcPrefab : goblinPrefab;
                 }
                 break;
@@ -80,39 +74,28 @@ public class EnemySpawner : MonoBehaviour
                 newEnemyPrefab = trollPrefab;
                 break;
 
-            case "Таверна":
-                return;
-
             default:
-                Debug.LogWarning($"Неизвестная локация: {currentLocation}");
                 return;
         }
 
-        // Проверка наличия префаба
         if (newEnemyPrefab == null)
         {
             Debug.LogError($"Префаб для локации {currentLocation} не назначен!");
             return;
         }
 
-        // Создаём врага
         GameObject spawnedEnemy = Instantiate(newEnemyPrefab);
         Enemy enemy = spawnedEnemy.GetComponent<Enemy>();
 
         if (enemy != null)
         {
-            // Даём врагу случайное имя
             enemy.enemyName = $"{enemy.enemyName}-{Random.Range(1, 100)}";
-            
-            // Увеличиваем счётчик
             currentEnemyCount++;
 
-            // Добавляем в UIManager
             if (ui != null)
             {
                 ui.AddEnemy(enemy);
                 
-                // Особое сообщение для орка-вождя
                 if (enemy is Orc)
                     ui.AppendLog($"👹 В лесу появился ВОЖДЬ ОРКОВ: {enemy.enemyName}! Другие враги затаились...");
                 else
@@ -121,14 +104,12 @@ public class EnemySpawner : MonoBehaviour
         }
     }
 
-    // ====== ВЫЗЫВАЕТСЯ, КОГДА ВРАГ УМИРАЕТ ======
     public void OnEnemyDied()
     {
         currentEnemyCount--;
         if (currentEnemyCount < 0) currentEnemyCount = 0;
     }
 
-    // ====== ПОЛНАЯ ОСТАНОВКА СПАВНА ======
     public void StopSpawning()
     {
         spawnEnabled = false;
@@ -142,7 +123,6 @@ public class EnemySpawner : MonoBehaviour
         Debug.Log("🛑 Спавн врагов полностью остановлен.");
     }
 
-    // ====== ВОЗОБНОВЛЕНИЕ СПАВНА ======
     public void RestartSpawning()
     {
         if (spawnCoroutine == null)

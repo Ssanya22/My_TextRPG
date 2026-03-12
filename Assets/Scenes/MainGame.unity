@@ -151,9 +151,6 @@ MonoBehaviour:
   goblinPrefab: {fileID: 1293086957934913521, guid: 560fb5520c94e0a48ad701640d399aa3, type: 3}
   orcPrefab: {fileID: 1895168397383757666, guid: fb467b3128d3d874586075b43c2c3165, type: 3}
   trollPrefab: {fileID: 6987882290537205359, guid: 98c4c4abaa3f016428fcdef2d98e8a2d, type: 3}
-  goblinChance: 0.5
-  orcChance: 0.3
-  trollChance: 0.2
   spawnInterval: 10
   maxEnemies: 5
   currentLocation: "\u0422\u0430\u0432\u0435\u0440\u043D\u0430"
@@ -773,16 +770,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58bc8f159efd11f488e153e619989b9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  characterName: "\u0413\u0435\u0440\u043E\u0439"
   strength: 16
   constitution: 14
   dexterity: 12
+  intelligence: 10
+  wisdom: 10
+  charisma: 10
+  combatSkill: 0
+  tradingSkill: 0
+  stealthSkill: 0
+  magicSkill: 0
+  craftingSkill: 0
+  diplomacySkill: 0
   health: 0
-  experience: {fileID: 791924861}
   healthPotions: 3
-  skillPoints: 0
-  attackBonus: 0
-  defenseBonus: 0
-  critChance: 0
+  experience: {fileID: 791924861}
+  guilds: []
 --- !u!114 &791924859
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -859,7 +863,7 @@ MonoBehaviour:
   inputFieldTMP: {fileID: 1341073748}
   inputFieldLegacy: {fileID: 0}
   statsText: {fileID: 1278786186}
-  warrior: {fileID: 791924858}
+  character: {fileID: 791924858}
   enemies: []
   maxLogLines: 500
   hardcoreMode: 0

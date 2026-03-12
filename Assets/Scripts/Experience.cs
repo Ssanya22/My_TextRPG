@@ -1,54 +1,47 @@
 using UnityEngine;
 
-// Этот скрипт можно прикрепить к любому персонажу,
-// у которого есть уровни и опыт
 public class Experience : MonoBehaviour
 {
     [Header("Текущие значения")]
-    public int level = 1;           // текущий уровень
-    public int currentXP = 0;       // сколько опыта уже есть
-    public int xpToNextLevel = 100; // сколько нужно до следующего уровня
+    public int level = 1;
+    public int currentXP = 0;
+    public int xpToNextLevel = 100;
 
     [Header("Настройки")]
-    public float xpMultiplier = 1.2f; // на сколько растёт потребность в опыте
+    public float xpMultiplier = 1.2f;
 
-    // Добавить опыт
     public void AddXP(int amount)
     {
         currentXP += amount;
         Debug.Log($"✨ Получено {amount} опыта! Всего: {currentXP}/{xpToNextLevel}");
-
-        // Проверяем, не повысился ли уровень
+        
         while (currentXP >= xpToNextLevel)
         {
             LevelUp();
         }
     }
 
-    // Повышение уровня
     void LevelUp()
     {
         currentXP -= xpToNextLevel;
         level++;
         xpToNextLevel = Mathf.RoundToInt(xpToNextLevel * xpMultiplier);
-
-        // Даём очко навыка воину
-        Warrior warrior = GetComponent<Warrior>();
-        if (warrior != null)
+        
+        // Даём очко навыка персонажу
+        Character character = GetComponent<Character>();  // ← ИЗМЕНЕНО (было Warrior)
+        if (character != null)
         {
-            warrior.LevelUpSkill();
+            character.ImproveSkill("combat", 1);  // можно давать выбор, пока просто бой
         }
-
+        
         Debug.Log($"🎉 УРОВЕНЬ ПОВЫШЕН! Теперь {level} уровень! До следующего: {xpToNextLevel} опыта");
     }
 
-    // Сколько процентов до следующего уровня (для красивого отображения)
     public float GetProgressPercent()
     {
         return (float)currentXP / xpToNextLevel;
     }
 
-    // Краткая информация для UI
     public string GetStatsLine()
     {
         return $"Уровень: {level} | Опыт: {currentXP}/{xpToNextLevel}";

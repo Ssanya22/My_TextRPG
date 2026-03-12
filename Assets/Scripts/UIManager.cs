@@ -12,7 +12,7 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TMP_Text statsText;
 
     [Header("Игровая логика")]
-    [SerializeField] private Warrior warrior;
+    [SerializeField] private Character character;  // ← ИЗМЕНЕНО (было Warrior)
 
     [Header("Боевая система")]
     [SerializeField] private List<Enemy> enemies = new List<Enemy>();
@@ -65,7 +65,7 @@ public class UIManager : MonoBehaviour
         if (mainLog == null) Debug.LogWarning("UIManager: не назначен Main Log.");
         if (inputFieldTMP == null && inputFieldLegacy == null) Debug.LogWarning("UIManager: не назначен Input Field (TMP или Legacy).");
         if (statsText == null) Debug.LogWarning("UIManager: не назначен Stats Text.");
-        if (warrior == null) Debug.LogWarning("UIManager: не назначен Warrior.");
+        if (character == null) Debug.LogWarning("UIManager: не назначен Character."); // ← ИЗМЕНЕНО
 
         _scrollRect = mainLog != null ? mainLog.GetComponentInParent<ScrollRect>() : null;
         _contentRect = _scrollRect != null ? _scrollRect.content : null;
@@ -73,9 +73,6 @@ public class UIManager : MonoBehaviour
 
         if (mainLog != null) mainLog.text = "";
         AppendLog("Добро пожаловать в текстовую RPG!");
-
-        // ЭТУ СТРОКУ УДАЛИЛИ:
-        // AppendLog("Введите команду: attack, hit, stats, враг, бей, зелье, где я");
 
         // Вместо неё теперь выбор режима
         AppendLog("═══════════════════════════════════");
@@ -161,7 +158,7 @@ public class UIManager : MonoBehaviour
 
             if (lower.Contains("воскреснуть") || lower.Contains("ожить"))
             {
-                ResurrectWarrior();
+                ResurrectCharacter();  // ← ИЗМЕНЕНО (было ResurrectWarrior)
             }
             else
             {
@@ -226,12 +223,14 @@ public class UIManager : MonoBehaviour
             case "heal":
                 PerformHeal();
                 break;
-
             // ----- СТАТИСТИКА -----
             case "stats":
-                AppendLog(warrior.GetStatsLine());
+                ShowFullStats();  // теперь показывает подробно в лог
                 break;
-
+            // -----НАВЫКИ(без полной статистики)
+            case "skills":
+                ShowSkills();
+                break;
             // ----- СПИСОК ВРАГОВ -----
             case "enemies":
                 ShowEnemyList();
@@ -276,44 +275,29 @@ public class UIManager : MonoBehaviour
                 break;
 
             case "resurrect":
-                if (warrior.health > 0)
+                if (character.health > 0)  // ← ИЗМЕНЕНО
                 {
                     AppendLog("Ты ещё жив! Зачем воскресать?");
                 }
                 else
                 {
-                    ResurrectWarrior();
+                    ResurrectCharacter();  // ← ИЗМЕНЕНО
                 }
                 break;
+
             case "skill":
-                if (warrior.skillPoints <= 0)
-                {
-                    AppendLog("❌ У тебя нет очков навыков!");
-                    break;
-                }
-
-                // Парсим, что именно улучшать
-                if (parsed.Target == "attack")
-                {
-                    if (warrior.SpendSkillPoint("атака"))
-                        AppendLog("⚔️ Урон увеличен!");
-                }
-                else if (parsed.Target == "defense")
-                {
-                    if (warrior.SpendSkillPoint("защита"))
-                        AppendLog("🛡️ Защита увеличена!");
-                }
-                else if (parsed.Target == "crit")
-                {
-                    if (warrior.SpendSkillPoint("крит"))
-                        AppendLog("🔥 Шанс крита увеличен!");
-                }
-                else
-                {
-                    AppendLog("📚 Доступные улучшения: 'атака', 'защита', 'крит'");
-                }
+                HandleSkill(parsed);  // ← ИЗМЕНЕНО (используем HandleSkill)
                 break;
-
+            case "навыки":
+                string skills = $"📊 ТВОИ НАВЫКИ:\n";
+                skills += $"⚔️ Бой: {character.combatSkill}\n";
+                skills += $"🪙 Торговля: {character.tradingSkill}\n";
+                skills += $"👤 Скрытность: {character.stealthSkill}\n";
+                skills += $"🔮 Магия: {character.magicSkill}\n";
+                skills += $"🔨 Ремесло: {character.craftingSkill}\n";
+                skills += $"🤝 Дипломатия: {character.diplomacySkill}";
+                AppendLog(skills);
+                break;
             default:
                 AppendLog($"❓ Не знаю, что делать с командой '{cmd}'. Попробуй по-другому.");
                 break;
@@ -350,31 +334,28 @@ public class UIManager : MonoBehaviour
     public void RefreshStats()
     {
         if (statsText == null) return;
-        if (warrior == null)
+        if (character == null)
         {
-            statsText.text = "HP: -\nСИЛ: -\nЛОВ: -\nЗелья: -";
+            statsText.text = "HP: -\n⚡ -\n🧪 -";
             return;
         }
 
-        string xpInfo = "";
-        if (warrior.experience != null)
+        // Базовая информация на панели
+        string hpLine = $"❤️ HP: {character.health}/{character.maxHealth}";
+
+        // Мана (пока заглушка, потом привяжем к магии)
+        string manaLine = character.magicSkill > 0 ? $"⚡ Мана: {character.magicSkill * 2}" : "";
+
+        string potionLine = $"🧪 Зелья: {character.healthPotions}";
+
+        string xpLine = "";
+        if (character.experience != null)
         {
-            xpInfo = $"\nУР: {warrior.experience.level}\nОПЫТ: {warrior.experience.currentXP}/{warrior.experience.xpToNextLevel}";
+            xpLine = $"⭐ УР: {character.experience.level} | {character.experience.currentXP}/{character.experience.xpToNextLevel}";
         }
 
-        string modeText = "";
-        if (modeSelected)
-        {
-            modeText = hardcoreMode ? "\n☠️ HARDCORE" : "\n✨ Обычный";
-        }
-        else
-        {
-            modeText = "\n⚔️ Выбери режим";
-        }
-
-        string stats = $"HP: {warrior.health}/{warrior.maxHealth}\nСИЛ: {warrior.strength}\nЛОВ: {warrior.dexterity}\nЗелья: {warrior.healthPotions}{xpInfo}{modeText}";
-
-        statsText.text = UnicodeConverter.ToUTF32(stats);
+        // Собираем всё в одну строку, пропуская пустое
+        statsText.text = $"{hpLine}\n{manaLine}\n{potionLine}\n{xpLine}";
     }
 
     private void ScrollLogToBottom()
@@ -438,11 +419,12 @@ public class UIManager : MonoBehaviour
         return false;
     }
 
-    public void SetWarrior(Warrior w)
+    public void SetCharacter(Character c)  // ← ИЗМЕНЕНО (было SetWarrior)
     {
-        warrior = w;
+        character = c;
         RefreshStats();
     }
+
     private void PerformAttack()
     {
         // ====== 1. ПРОВЕРКА: есть ли враг и жив ли он ======
@@ -458,37 +440,38 @@ public class UIManager : MonoBehaviour
             return;
         }
 
-        // ====== 2. ПРОВЕРКА: жив ли воин ПЕРЕД атакой ======
-        if (warrior.health <= 0)
+        // ====== 2. ПРОВЕРКА: жив ли персонаж ПЕРЕД атакой ======
+        if (character.health <= 0)  // ← ИЗМЕНЕНО
         {
-            // Если воин уже мёртв — обрабатываем смерть
+            // Если персонаж уже мёртв — обрабатываем смерть
             HandleDeath();
             return;
         }
 
-        // ====== 3. ВОИН АТАКУЕТ ======
-        string attackResult = warrior.Attack();
+        // ====== 3. ПЕРСОНАЖ АТАКУЕТ ======
+        string attackResult = character.Attack();  // ← ИЗМЕНЕНО
         AppendLog(attackResult);
 
-        // Рассчитываем урон воина
-        int damage = Random.Range(1, 9) + warrior.StrengthModifier;
+        // Рассчитываем урон
+        int damage = Random.Range(1, 9) + character.StrengthModifier;  // ← ИЗМЕНЕНО
         string damageResult = currentEnemy.TakeDamage(damage);
         AppendLog(damageResult);
 
         // ====== 4. ПРОВЕРКА: умер ли враг ПОСЛЕ атаки ======
         if (!currentEnemy.IsAlive())
         {
-            // Враг мёртв — победа, опыт, возможно новый враг
+            // Враг мёртв — победа, опыт, навык
             AppendLog($"✨ Вы победили {currentEnemy.enemyName}!");
 
-            if (warrior.experience != null)
+            // Увеличиваем навык боя
+            character.ImproveSkill("combat", 2);  // ← НОВОЕ
+
+            if (character.experience != null)
             {
                 int xpReward = 50;
-                warrior.experience.AddXP(xpReward);
+                character.experience.AddXP(xpReward);
                 AppendLog($"✨ Получено {xpReward} опыта!");
             }
-
-            // Враг удаляется из списка (можно добавить позже)
         }
         else // ====== 5. ВРАГ ВЫЖИЛ И ОТВЕЧАЕТ ======
         {
@@ -496,17 +479,88 @@ public class UIManager : MonoBehaviour
             AppendLog(enemyAttack);
 
             int enemyDamage = Random.Range(1, 7) + currentEnemy.StrengthModifier;
-            string playerDamage = warrior.TakeDamage(enemyDamage);
+            string playerDamage = character.TakeDamage(enemyDamage);  // ← ИЗМЕНЕНО
             AppendLog(playerDamage);
 
-            // ====== 6. ПРОВЕРКА: не умер ли воин ПОСЛЕ контратаки ======
-            if (warrior.health <= 0)
+            // ====== 6. ПРОВЕРКА: не умер ли персонаж ПОСЛЕ контратаки ======
+            if (character.health <= 0)  // ← ИЗМЕНЕНО
             {
-                // Если воин умер от контратаки — обрабатываем смерть
+                // Если персонаж умер от контратаки — обрабатываем смерть
                 HandleDeath();
             }
         }
     }
+
+    private void ShowFullStats()
+    {
+        if (character == null)
+        {
+            AppendLog("❌ Нет персонажа!");
+            return;
+        }
+
+        string stats = $"\n═══════ СТАТИСТИКА ═══════\n";
+        stats += $"📜 Ты известен как: {character.GetReputationTitle()}\n";
+        stats += $"\n❤️ Здоровье: {character.health}/{character.maxHealth}\n";
+
+        // Мана если есть
+        if (character.magicSkill > 0)
+            stats += $"⚡ Мана: {character.magicSkill * 2}\n";
+
+        stats += $"\n⚔️ БОЕВЫЕ ХАРАКТЕРИСТИКИ:\n";
+        stats += $"   Сила: {character.strength} | Ловкость: {character.dexterity} | Телосложение: {character.constitution}\n";
+
+        if (character.intelligence > 10 || character.wisdom > 10 || character.charisma > 10)
+        {
+            stats += $"\n🧠 ИНТЕЛЛЕКТУАЛЬНЫЕ:\n";
+            stats += $"   Интеллект: {character.intelligence} | Мудрость: {character.wisdom} | Харизма: {character.charisma}\n";
+        }
+
+        stats += $"\n📊 НАВЫКИ (растут от действий):\n";
+        stats += $"   ⚔️ Бой: {character.combatSkill}\n";
+        if (character.tradingSkill > 0) stats += $"   🪙 Торговля: {character.tradingSkill}\n";
+        if (character.stealthSkill > 0) stats += $"   👤 Скрытность: {character.stealthSkill}\n";
+        if (character.magicSkill > 0) stats += $"   🔮 Магия: {character.magicSkill}\n";
+        if (character.craftingSkill > 0) stats += $"   🔨 Ремесло: {character.craftingSkill}\n";
+        if (character.diplomacySkill > 0) stats += $"   🤝 Дипломатия: {character.diplomacySkill}\n";
+
+        if (character.experience != null)
+        {
+            stats += $"\n⭐ ПРОГРЕСС:\n";
+            stats += $"   Уровень: {character.experience.level}\n";
+            stats += $"   Опыт: {character.experience.currentXP}/{character.experience.xpToNextLevel}\n";
+        }
+
+        stats += $"\n🧪 Инвентарь: {character.healthPotions} зелий\n";
+        stats += $"⚙️ Режим: {(hardcoreMode ? "HARDCORE ☠️" : "Обычный ✨")}\n";
+        stats += $"═══════════════════════";
+
+        AppendLog(stats);
+    }
+
+    private void ShowSkills()
+{
+    if (character == null)
+    {
+        AppendLog("❌ Нет персонажа!");
+        return;
+    }
+
+    string skills = $"📊 ТВОИ НАВЫКИ:\n";
+    skills += $"⚔️ Бой: {character.combatSkill}\n";
+    skills += $"🪙 Торговля: {character.tradingSkill}\n";
+    skills += $"👤 Скрытность: {character.stealthSkill}\n";
+    skills += $"🔮 Магия: {character.magicSkill}\n";
+    skills += $"🔨 Ремесло: {character.craftingSkill}\n";
+    skills += $"🤝 Дипломатия: {character.diplomacySkill}\n";
+    
+    if (character.skillPoints > 0)
+    {
+        skills += $"\n⭐ Очков навыков: {character.skillPoints} (используй 'улучшить')";
+    }
+    
+    AppendLog(skills);
+}
     private void HandleDeath()
     {
         isDead = true;
@@ -534,72 +588,47 @@ public class UIManager : MonoBehaviour
 
     private void HandleSkill(ParsedCommand parsed)
     {
-        if (warrior == null)
+        if (character == null)  // ← ИЗМЕНЕНО
         {
-            AppendLog("❌ Нет воина!");
+            AppendLog("❌ Нет персонажа!");
             return;
         }
 
-        if (warrior.skillPoints <= 0)
-        {
-            AppendLog("❌ У тебя нет очков навыков! Сначала повысь уровень.");
-            return;
-        }
+        // Пока у персонажа нет системы очков навыков, просто показываем сообщение
+        AppendLog("📚 Система навыков в разработке. Скоро ты сможешь улучшать характеристики!");
 
-        // Если цель не указана — показываем доступные скиллы
-        if (string.IsNullOrEmpty(parsed.Target))
-        {
-            AppendLog("📚 Доступные улучшения:");
-            AppendLog("   • 'улучшить атаку'  — +2 к урону");
-            AppendLog("   • 'улучшить защиту' — -1 к получаемому урону");
-            AppendLog("   • 'улучшить крит'   — +5% к шансу крита");
-            AppendLog($"   Очков навыков: {warrior.skillPoints}");
-            return;
-        }
-
-        // Пытаемся улучшить указанный навык
-        bool success = warrior.SpendSkillPoint(parsed.Target);
-
-        if (success)
-        {
-            AppendLog($"✨ Навык улучшен! {warrior.GetSkillInfo()}");
-            RefreshStats();
-        }
-        else
-        {
-            AppendLog($"❌ Не удалось улучшить '{parsed.Target}'. Попробуй: атаку, защиту или крит.");
-        }
+        // Здесь потом будет логика улучшения навыков
     }
 
     private void PerformHeal()
     {
-        if (warrior.health <= 0)
+        if (character.health <= 0)  // ← ИЗМЕНЕНО
         {
             AppendLog("💀 Ты мёртв и не можешь лечиться. Игра окончена?");
             return;
         }
 
-        if (warrior.healthPotions <= 0)
+        if (character.healthPotions <= 0)  // ← ИЗМЕНЕНО
         {
             AppendLog("🧪 У тебя нет зелий! Найди или купи.");
             return;
         }
 
-        if (warrior.health >= warrior.maxHealth)
+        if (character.health >= character.maxHealth)  // ← ИЗМЕНЕНО
         {
             AppendLog("❤️ У тебя и так полное здоровье!");
             return;
         }
 
-        warrior.healthPotions--;
+        character.healthPotions--;  // ← ИЗМЕНЕНО
         int healAmount = 10;
-        warrior.health += healAmount;
+        character.health += healAmount;  // ← ИЗМЕНЕНО
 
-        if (warrior.health > warrior.maxHealth)
-            warrior.health = warrior.maxHealth;
+        if (character.health > character.maxHealth)  // ← ИЗМЕНЕНО
+            character.health = character.maxHealth;
 
-        AppendLog($"🧪 Ты выпил зелье! Осталось зелий: {warrior.healthPotions}");
-        AppendLog($"❤️ Восстановлено {healAmount} HP. Теперь HP: {warrior.health}/{warrior.maxHealth}");
+        AppendLog($"🧪 Ты выпил зелье! Осталось зелий: {character.healthPotions}");
+        AppendLog($"❤️ Восстановлено {healAmount} HP. Теперь HP: {character.health}/{character.maxHealth}");
     }
 
     private void ShowEnemyList()
@@ -620,34 +649,34 @@ public class UIManager : MonoBehaviour
     }
 
     private void GoToLocation(string location)
-{
-    LocationManager locMgr = FindFirstObjectByType<LocationManager>();
-    if (locMgr != null)
     {
-        locMgr.GoToLocation(location);
-        
-        // Правильные сообщения для каждой локации
-        switch (location)
+        LocationManager locMgr = FindFirstObjectByType<LocationManager>();
+        if (locMgr != null)
         {
-            case "Лес":
-                AppendLog("🌳 Ты отправляешься в лес...");
-                break;
-            case "Горы":
-                AppendLog("🏔️ Ты отправляешься в горы...");
-                break;
-            case "Таверна":
-                AppendLog("🏠 Ты возвращаешься в таверну...");
-                break;
-            default:
-                AppendLog($"📍 Ты перемещаешься в {location}");
-                break;
+            locMgr.GoToLocation(location);
+
+            // Правильные сообщения для каждой локации
+            switch (location)
+            {
+                case "Лес":
+                    AppendLog("🌳 Ты отправляешься в лес...");
+                    break;
+                case "Горы":
+                    AppendLog("🏔️ Ты отправляешься в горы...");
+                    break;
+                case "Таверна":
+                    AppendLog("🏠 Ты возвращаешься в таверну...");
+                    break;
+                default:
+                    AppendLog($"📍 Ты перемещаешься в {location}");
+                    break;
+            }
+        }
+        else
+        {
+            AppendLog("Ошибка: LocationManager не найден!");
         }
     }
-    else
-    {
-        AppendLog("Ошибка: LocationManager не найден!");
-    }
-}
 
     private void ShowCurrentLocation()
     {
@@ -664,7 +693,7 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    private void ResurrectWarrior()
+    private void ResurrectCharacter()  // ← ИЗМЕНЕНО (было ResurrectWarrior)
     {
         // 🧠 ЕСЛИ ХАРДКОР — ВОСКРЕШЕНИЯ НЕТ
         if (hardcoreMode)
@@ -676,31 +705,31 @@ public class UIManager : MonoBehaviour
         }
 
         // 🧠 ЕСЛИ УЖЕ ЖИВ
-        if (warrior.health > 0)
+        if (character.health > 0)  // ← ИЗМЕНЕНО
         {
             AppendLog("Ты ещё жив! Зачем воскресать?");
             return;
         }
 
         // 🧠 ОБЫЧНЫЙ РЕЖИМ — ВОСКРЕШАЕМ
-        isDead = false;  // ← сбрасываем флаг смерти
+        isDead = false;
 
         // Возвращаем в таверну
         GoToLocation("Таверна");
 
         // Штраф: теряем 25% опыта
-        if (warrior.experience != null)
+        if (character.experience != null)  // ← ИЗМЕНЕНО
         {
-            int lostXP = warrior.experience.currentXP / 4;
-            warrior.experience.currentXP -= lostXP;
-            if (warrior.experience.currentXP < 0)
-                warrior.experience.currentXP = 0;
+            int lostXP = character.experience.currentXP / 4;
+            character.experience.currentXP -= lostXP;
+            if (character.experience.currentXP < 0)
+                character.experience.currentXP = 0;
 
             AppendLog($"💔 При воскрешении ты потерял {lostXP} опыта!");
         }
 
         // Восстанавливаем половину здоровья
-        warrior.health = warrior.maxHealth / 2;
+        character.health = character.maxHealth / 2;  // ← ИЗМЕНЕНО
 
         // Включаем спавн обратно
         EnemySpawner spawner = FindFirstObjectByType<EnemySpawner>();
@@ -709,7 +738,7 @@ public class UIManager : MonoBehaviour
             spawner.RestartSpawning();
         }
 
-        AppendLog($"✨ Ты очнулся в таверне с {warrior.health}/{warrior.maxHealth} HP.");
+        AppendLog($"✨ Ты очнулся в таверне с {character.health}/{character.maxHealth} HP.");  // ← ИЗМЕНЕНО
         AppendLog("💡 Будь осторожнее в следующий раз!");
 
         RefreshStats();
@@ -718,14 +747,16 @@ public class UIManager : MonoBehaviour
     private void RestartGame()
     {
         isDead = false;
-        // Сбрасываем воина
-        warrior.health = warrior.maxHealth;
-        warrior.healthPotions = 3;
-        if (warrior.experience != null)
+
+        // Сбрасываем персонажа
+        character.health = character.maxHealth;  // ← ИЗМЕНЕНО
+        character.healthPotions = 3;  // ← ИЗМЕНЕНО
+
+        if (character.experience != null)
         {
-            warrior.experience.level = 1;
-            warrior.experience.currentXP = 0;
-            warrior.experience.xpToNextLevel = 100;
+            character.experience.level = 1;
+            character.experience.currentXP = 0;
+            character.experience.xpToNextLevel = 100;
         }
 
         // Очищаем врагов
@@ -757,9 +788,10 @@ public class UIManager : MonoBehaviour
 
     private System.Collections.IEnumerator RestartAfterDelay(float seconds)
     {
-        yield return new WaitForSeconds(seconds);  // ждём указанное количество секунд
-        RestartGame();  // вызываем перезапуск
+        yield return new WaitForSeconds(seconds);
+        RestartGame();
     }
+
     private void OnTmpSubmit(string text)
     {
         SubmitCommand(text);
