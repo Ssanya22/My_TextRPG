@@ -7,6 +7,7 @@ public class Troll : Enemy
         enemyName = "Тролль";
         health = 30;
         strength = 18;
+         xpReward = 150;  
     }
 
     public override string Attack()

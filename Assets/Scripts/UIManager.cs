@@ -26,6 +26,8 @@ public class UIManager : MonoBehaviour
     public bool hardcoreMode = false; // true = перманентная смерть
     private bool modeSelected = false; // выбран ли режим
     private bool isDead = false; // жив ли игрок 
+    private float detectionTimer = 0f;
+    private float detectionInterval = 2f; // проверка каждые 2 секунды
     private ScrollRect _scrollRect;
     private RectTransform _contentRect;
     private RectTransform _logRect;
@@ -90,7 +92,17 @@ public class UIManager : MonoBehaviour
         modeSelected = false;
     }
 
-    private void Update() { }
+    private void Update()
+    {
+        if (isDead) return;
+
+        detectionTimer += Time.deltaTime;
+        if (detectionTimer >= detectionInterval)
+        {
+            detectionTimer = 0f;
+            CheckDetection();
+        }
+    }
 
     private string GetInputText()
     {
@@ -185,37 +197,51 @@ public class UIManager : MonoBehaviour
         {
             // ----- АТАКА -----
             case "attack":
-                // Если явно указан номер
-                if (parsed.TargetIndex > 0 && parsed.TargetIndex <= enemies.Count)
+                if (enemies.Count == 0)
                 {
-                    currentEnemy = enemies[parsed.TargetIndex - 1];
-                    AppendLog($"👺 Выбран враг: {currentEnemy.enemyName}");
-                    PerformAttack();
+                    AppendLog("👺 Нет врагов для атаки!");
+                    break;
                 }
-                // Если сказано "этого", "текущего" и есть выбранный враг
-                else if (parsed.IsCurrentTarget && currentEnemy != null)
+
+                // Проверяем, в стелсе ли мы
+                if (character.stealthSkill > 30)
                 {
-                    PerformAttack();
+                    // Если в стелсе — можно выбрать цель
+                    if (parsed.TargetIndex > 0 && parsed.TargetIndex <= enemies.Count)
+                    {
+                        currentEnemy = enemies[parsed.TargetIndex - 1];
+                        if (currentEnemy.IsAlive())
+                        {
+                            AppendLog($"👺 Выбран враг: {currentEnemy.enemyName}");
+                            PerformAttack();
+                        }
+                        else
+                        {
+                            AppendLog($"👺 {currentEnemy.enemyName} уже мёртв!");
+                        }
+                    }
+                    else if (currentEnemy != null && currentEnemy.IsAlive())
+                    {
+                        PerformAttack();
+                    }
+                    else
+                    {
+                        AppendLog("👺 Выбери врага командой 'выбрать N'");
+                    }
                 }
-                // Если просто "атакую" и есть выбранный враг
-                else if (currentEnemy != null && parsed.Target == "enemy")
-                {
-                    PerformAttack();
-                }
-                // Если есть выбранный враг (запасной вариант)
-                else if (currentEnemy != null)
-                {
-                    PerformAttack();
-                }
-                // Если нет врага, но есть индекс
-                else if (parsed.TargetIndex > 0)
-                {
-                    AppendLog($"👺 Враг с номером {parsed.TargetIndex} не найден. Напиши 'враги' для списка.");
-                }
-                // Если ничего не подошло
                 else
                 {
-                    AppendLog("👺 Кого атаковать? Напиши 'враги' для списка или выбери номер.");
+                    // Если не в стелсе — авто-атака первого живого
+                    foreach (Enemy e in enemies)
+                    {
+                        if (e.IsAlive())
+                        {
+                            currentEnemy = e;
+                            AppendLog($"👺 {currentEnemy.enemyName} атакует тебя!");
+                            PerformAttack();
+                            break;
+                        }
+                    }
                 }
                 break;
 
@@ -230,6 +256,9 @@ public class UIManager : MonoBehaviour
             // -----НАВЫКИ(без полной статистики)
             case "skills":
                 ShowSkills();
+                break;
+            case "upgrade":
+                HandleUpgrade(parsed);
                 break;
             // ----- СПИСОК ВРАГОВ -----
             case "enemies":
@@ -263,25 +292,28 @@ public class UIManager : MonoBehaviour
 
             // ----- ВЫБОР ЦЕЛИ -----
             case "select":
+                if (character.stealthSkill <= 30)
+                {
+                    AppendLog("👤 Ты слишком заметен! Враги уже нападают.");
+                    break;
+                }
+
                 if (parsed.TargetIndex > 0 && parsed.TargetIndex <= enemies.Count)
                 {
                     currentEnemy = enemies[parsed.TargetIndex - 1];
-                    AppendLog($"👺 Выбран враг: {currentEnemy.enemyName}");
+                    if (currentEnemy.IsAlive())
+                    {
+                        AppendLog($"👺 Выбран враг: {currentEnemy.enemyName}");
+                    }
+                    else
+                    {
+                        AppendLog($"👺 {currentEnemy.enemyName} уже мёртв!");
+                        currentEnemy = null;
+                    }
                 }
                 else
                 {
                     AppendLog("Укажи номер врага, например: 'выбрать второго'");
-                }
-                break;
-
-            case "resurrect":
-                if (character.health > 0)  // ← ИЗМЕНЕНО
-                {
-                    AppendLog("Ты ещё жив! Зачем воскресать?");
-                }
-                else
-                {
-                    ResurrectCharacter();  // ← ИЗМЕНЕНО
                 }
                 break;
 
@@ -336,26 +368,20 @@ public class UIManager : MonoBehaviour
         if (statsText == null) return;
         if (character == null)
         {
-            statsText.text = "HP: -\n⚡ -\n🧪 -";
+            statsText.text = "HP: - | СИЛ: - | ЛОВ: - | ТЕЛ: -";
             return;
         }
 
-        // Базовая информация на панели
-        string hpLine = $"❤️ HP: {character.health}/{character.maxHealth}";
+        string stats = $"❤️ HP: {character.health}/{character.maxHealth}\n";  // ← обязательно!
+        stats += $"⚔️ СИЛ: {character.strength} | 🏹 ЛОВ: {character.dexterity} | 🛡️ ТЕЛ: {character.constitution}\n";
+        stats += $"🧪 Зелья: {character.healthPotions}\n";
 
-        // Мана (пока заглушка, потом привяжем к магии)
-        string manaLine = character.magicSkill > 0 ? $"⚡ Мана: {character.magicSkill * 2}" : "";
-
-        string potionLine = $"🧪 Зелья: {character.healthPotions}";
-
-        string xpLine = "";
         if (character.experience != null)
         {
-            xpLine = $"⭐ УР: {character.experience.level} | {character.experience.currentXP}/{character.experience.xpToNextLevel}";
+            stats += $"⭐ УР: {character.experience.level} | {character.experience.currentXP}/{character.experience.xpToNextLevel}";
         }
 
-        // Собираем всё в одну строку, пропуская пустое
-        statsText.text = $"{hpLine}\n{manaLine}\n{potionLine}\n{xpLine}";
+        statsText.text = UnicodeConverter.ToUTF32(stats);
     }
 
     private void ScrollLogToBottom()
@@ -418,7 +444,10 @@ public class UIManager : MonoBehaviour
         }
         return false;
     }
-
+    public int GetEnemyCount()
+    {
+        return enemies.Count;
+    }
     public void SetCharacter(Character c)  // ← ИЗМЕНЕНО (было SetWarrior)
     {
         character = c;
@@ -427,7 +456,6 @@ public class UIManager : MonoBehaviour
 
     private void PerformAttack()
     {
-        // ====== 1. ПРОВЕРКА: есть ли враг и жив ли он ======
         if (currentEnemy == null)
         {
             AppendLog("👺 Нет выбранного врага. Напиши 'враги' для списка.");
@@ -440,52 +468,45 @@ public class UIManager : MonoBehaviour
             return;
         }
 
-        // ====== 2. ПРОВЕРКА: жив ли персонаж ПЕРЕД атакой ======
-        if (character.health <= 0)  // ← ИЗМЕНЕНО
+        // Проверка на смерть
+        if (character.health <= 0)
         {
-            // Если персонаж уже мёртв — обрабатываем смерть
             HandleDeath();
             return;
         }
 
-        // ====== 3. ПЕРСОНАЖ АТАКУЕТ ======
-        string attackResult = character.Attack();  // ← ИЗМЕНЕНО
+        // Атака
+        string attackResult = character.Attack();
         AppendLog(attackResult);
 
-        // Рассчитываем урон
-        int damage = Random.Range(1, 9) + character.StrengthModifier;  // ← ИЗМЕНЕНО
+        int damage = Random.Range(1, 9) + character.StrengthModifier;
         string damageResult = currentEnemy.TakeDamage(damage);
         AppendLog(damageResult);
 
-        // ====== 4. ПРОВЕРКА: умер ли враг ПОСЛЕ атаки ======
         if (!currentEnemy.IsAlive())
         {
-            // Враг мёртв — победа, опыт, навык
             AppendLog($"✨ Вы победили {currentEnemy.enemyName}!");
-
-            // Увеличиваем навык боя
-            character.ImproveSkill("combat", 2);  // ← НОВОЕ
+            character.ImproveSkill("combat", 2);
 
             if (character.experience != null)
             {
-                int xpReward = 50;
+                int xpReward = currentEnemy.xpReward;
                 character.experience.AddXP(xpReward);
                 AppendLog($"✨ Получено {xpReward} опыта!");
             }
         }
-        else // ====== 5. ВРАГ ВЫЖИЛ И ОТВЕЧАЕТ ======
+        else
         {
+            // Враг отвечает
             string enemyAttack = currentEnemy.Attack();
             AppendLog(enemyAttack);
 
             int enemyDamage = Random.Range(1, 7) + currentEnemy.StrengthModifier;
-            string playerDamage = character.TakeDamage(enemyDamage);  // ← ИЗМЕНЕНО
+            string playerDamage = character.TakeDamage(enemyDamage);
             AppendLog(playerDamage);
 
-            // ====== 6. ПРОВЕРКА: не умер ли персонаж ПОСЛЕ контратаки ======
-            if (character.health <= 0)  // ← ИЗМЕНЕНО
+            if (character.health <= 0)
             {
-                // Если персонаж умер от контратаки — обрабатываем смерть
                 HandleDeath();
             }
         }
@@ -502,23 +523,20 @@ public class UIManager : MonoBehaviour
         string stats = $"\n═══════ СТАТИСТИКА ═══════\n";
         stats += $"📜 Ты известен как: {character.GetReputationTitle()}\n";
         stats += $"\n❤️ Здоровье: {character.health}/{character.maxHealth}\n";
+        stats += $"   (+{character.maxHealth - 10} от телосложения)\n";
 
-        // Мана если есть
         if (character.magicSkill > 0)
             stats += $"⚡ Мана: {character.magicSkill * 2}\n";
 
         stats += $"\n⚔️ БОЕВЫЕ ХАРАКТЕРИСТИКИ:\n";
-        stats += $"   Сила: {character.strength} | Ловкость: {character.dexterity} | Телосложение: {character.constitution}\n";
+        stats += $"   Сила: {character.strength} | +{(character.strength - 10) / 2} к урону\n";
+        stats += $"   Ловкость: {character.dexterity} | {character.GetDodgeChance()}% уворота\n";
+        stats += $"   Телосложение: {character.constitution} | +{(character.constitution - 10) / 2} HP\n";
 
-        if (character.intelligence > 10 || character.wisdom > 10 || character.charisma > 10)
-        {
-            stats += $"\n🧠 ИНТЕЛЛЕКТУАЛЬНЫЕ:\n";
-            stats += $"   Интеллект: {character.intelligence} | Мудрость: {character.wisdom} | Харизма: {character.charisma}\n";
-        }
-
-        stats += $"\n📊 НАВЫКИ (растут от действий):\n";
+        stats += $"\n📊 НАВЫКИ:\n";
         stats += $"   ⚔️ Бой: {character.combatSkill}\n";
-        if (character.tradingSkill > 0) stats += $"   🪙 Торговля: {character.tradingSkill}\n";
+        if (character.tradingSkill > 0)
+            stats += $"   🪙 Торговля: {character.tradingSkill} | скидка {Mathf.RoundToInt((character.charisma - 10) * 2)}%\n";
         if (character.stealthSkill > 0) stats += $"   👤 Скрытность: {character.stealthSkill}\n";
         if (character.magicSkill > 0) stats += $"   🔮 Магия: {character.magicSkill}\n";
         if (character.craftingSkill > 0) stats += $"   🔨 Ремесло: {character.craftingSkill}\n";
@@ -539,28 +557,77 @@ public class UIManager : MonoBehaviour
     }
 
     private void ShowSkills()
-{
-    if (character == null)
     {
-        AppendLog("❌ Нет персонажа!");
-        return;
-    }
+        if (character == null)
+        {
+            AppendLog("❌ Нет персонажа!");
+            return;
+        }
 
-    string skills = $"📊 ТВОИ НАВЫКИ:\n";
-    skills += $"⚔️ Бой: {character.combatSkill}\n";
-    skills += $"🪙 Торговля: {character.tradingSkill}\n";
-    skills += $"👤 Скрытность: {character.stealthSkill}\n";
-    skills += $"🔮 Магия: {character.magicSkill}\n";
-    skills += $"🔨 Ремесло: {character.craftingSkill}\n";
-    skills += $"🤝 Дипломатия: {character.diplomacySkill}\n";
-    
-    if (character.skillPoints > 0)
-    {
-        skills += $"\n⭐ Очков навыков: {character.skillPoints} (используй 'улучшить')";
+        string skills = $"📊 ТВОИ НАВЫКИ:\n";
+        skills += $"⚔️ Бой: {character.combatSkill}\n";
+        skills += $"🪙 Торговля: {character.tradingSkill}\n";
+        skills += $"👤 Скрытность: {character.stealthSkill}\n";
+        skills += $"🔮 Магия: {character.magicSkill}\n";
+        skills += $"🔨 Ремесло: {character.craftingSkill}\n";
+        skills += $"🤝 Дипломатия: {character.diplomacySkill}\n";
+
+        // Показываем характеристики и здоровье
+        skills += $"\n📈 ХАРАКТЕРИСТИКИ:\n";
+        skills += $"   Сила: {character.strength}\n";
+        skills += $"   Ловкость: {character.dexterity}\n";
+        skills += $"   Телосложение: {character.constitution}\n";
+        skills += $"   ❤️ Здоровье: {character.health}/{character.maxHealth}\n";  // ← ДОБАВИЛИ
+
+        if (character.skillPoints > 0)
+        {
+            skills += $"\n⭐ Очков навыков: {character.skillPoints} (используй 'улучшить силу/бой/телосложение/торговлю')";
+        }
+
+        AppendLog(skills);
     }
-    
-    AppendLog(skills);
-}
+    private void HandleUpgrade(ParsedCommand parsed)
+    {
+        if (character == null)
+        {
+            AppendLog("❌ Нет персонажа!");
+            return;
+        }
+
+        if (character.skillPoints <= 0)
+        {
+            AppendLog("❌ У тебя нет очков навыков! Сначала повысь уровень.");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(parsed.Target))
+        {
+            AppendLog($"📚 Что можно улучшить (у тебя {character.skillPoints} очков):");
+            AppendLog("   • 'улучшить бой' — +2 к навыку боя");
+            AppendLog("   • 'улучшить силу' — +1 к силе");
+            AppendLog("   • 'улучшить ловкость' — +1 к ловкости");
+            AppendLog("   • 'улучшить телосложение' — +1 к здоровью");
+            AppendLog("   • 'улучшить торговлю' — +2 к торговле");
+            AppendLog("   • 'улучшить скрытность' — +2 к скрытности");
+            return;
+        }
+
+        // Проверяем, что улучшаем
+        string skillToUpgrade = parsed.Target;
+
+        // Пробуем улучшить
+        bool success = character.UpgradeSkill(skillToUpgrade);
+
+        if (success)
+        {
+            AppendLog($"✨ Навык '{skillToUpgrade}' улучшен!");
+            RefreshStats();
+        }
+        else
+        {
+            AppendLog($"❌ Не удалось улучшить '{skillToUpgrade}'. Попробуй: силу, ловкость, бой, торговлю, скрытность.");
+        }
+    }
     private void HandleDeath()
     {
         isDead = true;
@@ -792,6 +859,32 @@ public class UIManager : MonoBehaviour
         RestartGame();
     }
 
+    // ====== НОВЫЙ МЕТОД ДЛЯ ПРОВЕРКИ ОБНАРУЖЕНИЯ ======
+    private void CheckDetection()
+    {
+        if (enemies.Count == 0 || character == null) return;
+
+        bool detected = false;
+
+        foreach (Enemy enemy in enemies)
+        {
+            if (enemy.IsAlive() && character.IsDetectedBy(enemy))
+            {
+                detected = true;
+                if (currentEnemy == null || !currentEnemy.IsAlive())
+                {
+                    currentEnemy = enemy;
+                    AppendLog($"👺 {enemy.enemyName} заметил тебя! Бой начинается!");
+                }
+                break;
+            }
+        }
+
+        if (!detected && character.stealthSkill > 30)
+        {
+            AppendLog("👤 Ты остаёшься незамеченным. Можешь выбрать цель.");
+        }
+    }
     private void OnTmpSubmit(string text)
     {
         SubmitCommand(text);

@@ -7,8 +7,9 @@ public class Goblin : Enemy
     void Start()
     {
         // Настраиваем именно этого гоблина
-        enemyName = "Гоблин-разбойник";  // даём имя
-        health = 12;                      // побольше жизней
-        strength = 14;                    // посильнее
+        enemyName = "Гоблин-разбойник";  
+        health = 12;                      
+        strength = 14;
+        xpReward = 50;                    
     }
 }

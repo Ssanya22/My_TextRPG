@@ -22,20 +22,21 @@ public class Experience : MonoBehaviour
     }
 
     void LevelUp()
+{
+    currentXP -= xpToNextLevel;
+    level++;
+    xpToNextLevel = Mathf.RoundToInt(xpToNextLevel * xpMultiplier);
+    
+    // Даём очко навыка персонажу
+    Character character = GetComponent<Character>();
+    if (character != null)
     {
-        currentXP -= xpToNextLevel;
-        level++;
-        xpToNextLevel = Mathf.RoundToInt(xpToNextLevel * xpMultiplier);
-        
-        // Даём очко навыка персонажу
-        Character character = GetComponent<Character>();  // ← ИЗМЕНЕНО (было Warrior)
-        if (character != null)
-        {
-            character.ImproveSkill("combat", 1);  // можно давать выбор, пока просто бой
-        }
-        
-        Debug.Log($"🎉 УРОВЕНЬ ПОВЫШЕН! Теперь {level} уровень! До следующего: {xpToNextLevel} опыта");
+        character.skillPoints++;
+        Debug.Log($"🎉 Получено очко навыка! Всего: {character.skillPoints}");
     }
+    
+    Debug.Log($"🎉 УРОВЕНЬ ПОВЫШЕН! Теперь {level} уровень! До следующего: {xpToNextLevel} опыта");
+}
 
     public float GetProgressPercent()
     {

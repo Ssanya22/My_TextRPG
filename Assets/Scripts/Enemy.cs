@@ -6,6 +6,7 @@ public class Enemy : MonoBehaviour
     // Характеристики врага (можно менять в Unity)
     public string enemyName = "Гоблин";
     public int health = 10;
+    public int xpReward = 50;
     public int strength = 12;
     public int StrengthModifier => (strength - 10) / 2;
 

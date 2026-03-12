@@ -8,6 +8,7 @@ public class Orc : Enemy
         enemyName = "Орк-берсерк";
         health = 20;
         strength = 16;
+        xpReward = 100;  // больше опыта
     }
 
     // Переопределяем атаку для орка

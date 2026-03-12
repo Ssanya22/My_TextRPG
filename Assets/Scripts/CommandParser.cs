@@ -34,6 +34,12 @@ public static class CommandParser
     "навыки", "скиллы", "мои навыки", "прокачка",
     "что я умею", "способности", "умения"
 },
+
+        // Улучшение навыков
+        ["upgrade"] = new[] {
+    "улучшить", "прокачать", "повысить", "развить",
+    "вложить очки", "потратить очки", "skill up"
+},
         // Работа с врагами
         ["enemies"] = new[] {
             "враги", "противники", "монстры", "кто тут", "список врагов", "кто рядом",
@@ -153,7 +159,6 @@ public static class CommandParser
         }
         return null;
     }
-
     private static int FindTargetIndex(string text)
     {
         foreach (var pair in numberWords)
@@ -169,7 +174,6 @@ public static class CommandParser
 
         return -1;
     }
-
     private static string FindTarget(string text, int index)
     {
         // Если есть числовой индекс, значит цель точно враг
@@ -184,6 +188,24 @@ public static class CommandParser
         {
             return "current";
         }
+
+        // ====== НОВЫЕ ЦЕЛИ ДЛЯ УЛУЧШЕНИЙ ======
+        if (text.Contains("сил") || text.Contains("strength"))
+            return "strength";
+
+        if (text.Contains("ловк") || text.Contains("dexterity"))
+            return "dexterity";
+        if (text.Contains("телослож") || text.Contains("constitution") || text.Contains("вынослив"))
+            return "constitution";  // ← ДОБАВИЛИ
+
+        if (text.Contains("бой") || text.Contains("combat") || text.Contains("боев"))
+            return "combat";
+
+        if (text.Contains("торговл") || text.Contains("trading"))
+            return "trading";
+
+        if (text.Contains("скрытн") || text.Contains("stealth"))
+            return "stealth";
 
         // Общие слова для врага
         if (text.Contains("гоблин") || text.Contains("враг") ||
