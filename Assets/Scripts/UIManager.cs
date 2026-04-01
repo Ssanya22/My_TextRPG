@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
+using System;
 
 public class UIManager : MonoBehaviour
 {
@@ -22,6 +23,13 @@ public class UIManager : MonoBehaviour
     [Tooltip("Максимум строк в логе (0 = без ограничения)")]
     [SerializeField] private int maxLogLines = 500;
 
+    [Header("Быстрые действия")]
+    [SerializeField] private Button attackButton;
+    [SerializeField] private Button healButton;
+    [SerializeField] private Button statsButton;
+    [SerializeField] private Button mapButton;
+    [SerializeField] private Button homeButton;
+
     [Header("Настройки игры")]
     public bool hardcoreMode = false; // true = перманентная смерть
     private bool modeSelected = false; // выбран ли режим
@@ -31,6 +39,8 @@ public class UIManager : MonoBehaviour
     private ScrollRect _scrollRect;
     private RectTransform _contentRect;
     private RectTransform _logRect;
+
+
 
     [SerializeField] private float logContentPadding = 16f;
 
@@ -90,6 +100,9 @@ public class UIManager : MonoBehaviour
         if (inputFieldLegacy != null) inputFieldLegacy.ActivateInputField();
 
         modeSelected = false;
+
+        // ====== НАСТРОЙКА БЫСТРЫХ КНОПОК ======
+        SetupButtons();
     }
 
     private void Update()
@@ -184,7 +197,7 @@ public class UIManager : MonoBehaviour
 
         // Для отладки - покажем что распарсили
         Debug.Log($"Парсинг: {parsed}");
-
+        Debug.Log($"🔍 Отладка: Action={parsed.Action}, Target={parsed.Target}");
         // Если ничего не распознали
         if (parsed.Action == null)
         {
@@ -264,7 +277,10 @@ public class UIManager : MonoBehaviour
             case "enemies":
                 ShowEnemyList();
                 break;
-
+            // ----- РЕПУТАЦИЯ -----
+            case "reputation":
+                ShowReputation();
+                break;
             // ----- ИНФО О ВРАГЕ -----
             case "enemy_info":
                 if (currentEnemy != null)
@@ -273,17 +289,10 @@ public class UIManager : MonoBehaviour
                     AppendLog("Нет выбранного врага.");
                 break;
 
-            // ----- ЛОКАЦИИ -----
-            case "forest":
-                GoToLocation("Лес");
-                break;
+            // ----- ЛОКАЦИИ -----         
 
             case "tavern":
                 GoToLocation("Таверна");
-                break;
-
-            case "location":
-                ShowCurrentLocation();
                 break;
 
             case "mountains":
@@ -329,6 +338,24 @@ public class UIManager : MonoBehaviour
                 skills += $"🔨 Ремесло: {character.craftingSkill}\n";
                 skills += $"🤝 Дипломатия: {character.diplomacySkill}";
                 AppendLog(skills);
+                break;
+
+
+            // ====== КОМАНДЫ НАВИГАЦИИ ======
+            case "map":
+            case "карта":
+                ShowMap();
+                break;
+
+            case "location":
+            case "где я":
+                ShowCurrentLocation();
+                break;
+
+            case "travel":
+            case "пойти":
+            case "идти":
+                TravelTo(parsed);
                 break;
             default:
                 AppendLog($"❓ Не знаю, что делать с командой '{cmd}'. Попробуй по-другому.");
@@ -479,7 +506,7 @@ public class UIManager : MonoBehaviour
         string attackResult = character.Attack();
         AppendLog(attackResult);
 
-        int damage = Random.Range(1, 9) + character.StrengthModifier;
+        int damage = UnityEngine.Random.Range(1, 9) + character.StrengthModifier;
         string damageResult = currentEnemy.TakeDamage(damage);
         AppendLog(damageResult);
 
@@ -494,6 +521,25 @@ public class UIManager : MonoBehaviour
                 character.experience.AddXP(xpReward);
                 AppendLog($"✨ Получено {xpReward} опыта!");
             }
+
+            // ====== НАЧИСЛЕНИЕ РЕПУТАЦИИ ======
+            WorldMap worldMap = FindFirstObjectByType<WorldMap>();
+            if (worldMap != null)
+            {
+                var currentLocation = worldMap.GetCurrentLocation();
+                int currentRep = character.GetReputation(Faction.Veliry);
+                int maxRep = currentLocation.maxReputation;
+
+                if (currentRep < maxRep)
+                {
+                    character.AddReputation(Faction.Veliry, 2);
+                    AppendLog($"📈 Репутация с Велирами +2 (всего: {currentRep + 2}/{maxRep})");
+                }
+                else
+                {
+                    AppendLog($"📈 Твоя репутация с Велирами достигла предела в этой местности ({maxRep}). Пора искать новые земли.");
+                }
+            }
         }
         else
         {
@@ -501,7 +547,7 @@ public class UIManager : MonoBehaviour
             string enemyAttack = currentEnemy.Attack();
             AppendLog(enemyAttack);
 
-            int enemyDamage = Random.Range(1, 7) + currentEnemy.StrengthModifier;
+            int enemyDamage = UnityEngine.Random.Range(1, 7) + currentEnemy.StrengthModifier;
             string playerDamage = character.TakeDamage(enemyDamage);
             AppendLog(playerDamage);
 
@@ -511,7 +557,6 @@ public class UIManager : MonoBehaviour
             }
         }
     }
-
     private void ShowFullStats()
     {
         if (character == null)
@@ -745,21 +790,6 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    private void ShowCurrentLocation()
-    {
-        LocationManager locMgr = FindFirstObjectByType<LocationManager>();
-        if (locMgr != null)
-        {
-            string loc = locMgr.GetCurrentLocation();
-            string desc = locMgr.GetLocationDescription();
-            AppendLog($"📍 Ты в: {loc} — {desc}");
-        }
-        else
-        {
-            AppendLog("Ошибка: LocationManager не найден!");
-        }
-    }
-
     private void ResurrectCharacter()  // ← ИЗМЕНЕНО (было ResurrectWarrior)
     {
         // 🧠 ЕСЛИ ХАРДКОР — ВОСКРЕШЕНИЯ НЕТ
@@ -885,10 +915,171 @@ public class UIManager : MonoBehaviour
             AppendLog("👤 Ты остаёшься незамеченным. Можешь выбрать цель.");
         }
     }
+
+    // ====== МЕТОДЫ ДЛЯ НАВИГАЦИИ ======
+    private void ShowMap()
+    {
+        WorldMap worldMap = FindFirstObjectByType<WorldMap>();
+        if (worldMap != null)
+            AppendLog(worldMap.GetMapString());
+        else
+            AppendLog("❌ Карта мира не найдена!");
+    }
+
+    private void ShowCurrentLocation()
+    {
+        WorldMap worldMap = FindFirstObjectByType<WorldMap>();
+        if (worldMap == null)
+        {
+            AppendLog("❌ Карта мира не найдена!");
+            return;
+        }
+
+        var loc = worldMap.GetCurrentLocation();
+        if (loc == null)
+        {
+            AppendLog("❌ Не удалось определить местоположение");
+            return;
+        }
+
+        AppendLog($"📍 {loc.name}\n");
+        AppendLog(loc.description);
+
+        var destinations = worldMap.GetAvailableDestinations();
+        if (destinations.Count > 0)
+            AppendLog($"\n🚪 Можно пойти: {string.Join(", ", destinations)}");
+    }
+
+    private void TravelTo(ParsedCommand parsed)
+    {
+        if (string.IsNullOrEmpty(parsed.Target))
+        {
+            AppendLog("🤔 Куда идти? Например: 'пойти в лес'");
+            return;
+        }
+
+        WorldMap worldMap = FindFirstObjectByType<WorldMap>();
+        if (worldMap == null)
+        {
+            AppendLog("❌ Карта мира не найдена!");
+            return;
+        }
+
+        var current = worldMap.GetCurrentLocation();
+        if (current == null)
+        {
+            AppendLog("❌ Не могу определить текущее местоположение");
+            return;
+        }
+
+        // Убираем предлоги из цели
+        string targetName = parsed.Target.ToLower()
+            .Replace("в ", "")
+            .Replace("во ", "")
+            .Replace("на ", "")
+            .Replace("к ", "")
+            .Trim();
+
+        // Ищем локацию по названию среди доступных
+        string targetId = null;
+        foreach (var connId in current.connections)
+        {
+            var loc = worldMap.GetLocation(connId);
+            if (loc != null && loc.name.ToLower().Contains(targetName))
+            {
+                targetId = connId;
+                break;
+            }
+        }
+
+        if (targetId == null)
+        {
+            AppendLog($"❌ Нет места '{parsed.Target}' рядом с {current.name}");
+            AppendLog($"Доступно: {string.Join(", ", worldMap.GetAvailableDestinations())}");
+            return;
+        }
+
+        var targetLoc = worldMap.GetLocation(targetId);
+        // ====== ОТЛАДКА ======
+        Debug.Log($"Попытка перейти в {targetLoc.name}, isUnlocked={targetLoc.isUnlocked}, repRequired={targetLoc.reputationRequired}");
+
+        if (!targetLoc.isUnlocked)
+        {
+            int playerRep = character.GetReputation(targetLoc.faction);
+            Debug.Log($"Проверка {targetLoc.name}: репутация={playerRep}, требуется={targetLoc.reputationRequired}");
+
+            if (playerRep >= targetLoc.reputationRequired)
+            {
+                // Открываем локацию
+                targetLoc.isUnlocked = true;
+                AppendLog($"✨ Твоя репутация с {targetLoc.faction} достаточна! {targetLoc.name} открыта.");
+            }
+            else
+            {
+                AppendLog($"🔒 {targetLoc.name} закрыта. Нужна репутация {targetLoc.reputationRequired} с {targetLoc.faction}. У тебя {playerRep}");
+                return;
+            }
+        }
+
+        if (worldMap.TravelTo(targetId))
+        {
+            var newLoc = worldMap.GetCurrentLocation();
+            AppendLog($"🚶 Ты отправляешься в {newLoc.name}...");
+            AppendLog(newLoc.description);
+
+            if (newLoc.isDangerous)
+            {
+                EnemySpawner spawner = FindFirstObjectByType<EnemySpawner>();
+                if (spawner != null)
+                {
+                    spawner.UpdateLocation(newLoc.name);
+                    AppendLog("⚠️ Вокруг чувствуется опасность...");
+                }
+            }
+        }
+        else
+        {
+            AppendLog($"❌ Не удалось переместиться в {targetLoc.name}");
+        }
+    }
     private void OnTmpSubmit(string text)
     {
         SubmitCommand(text);
         if (inputFieldTMP != null) inputFieldTMP.ActivateInputField();
+    }
+
+    private void ShowReputation()
+    {
+        string result = "📊 РЕПУТАЦИЯ:\n";
+        result += "═══════════════════════\n";
+
+        foreach (Faction faction in Enum.GetValues(typeof(Faction)))
+        {
+            int rep = character.GetReputation(faction);
+            string icon = rep > 0 ? "👍" : (rep < 0 ? "👎" : "🤝");
+            result += $"{icon} {faction}: {rep}\n";
+        }
+
+        AppendLog(result);
+    }
+
+    // ====== НАСТРОЙКА БЫСТРЫХ КНОПОК ======
+    private void SetupButtons()
+    {
+        if (attackButton != null)
+            attackButton.onClick.AddListener(() => SubmitCommand("атаковать"));
+
+        if (healButton != null)
+            healButton.onClick.AddListener(() => SubmitCommand("зелье"));
+
+        if (statsButton != null)
+            statsButton.onClick.AddListener(() => SubmitCommand("статы"));
+
+        if (mapButton != null)
+            mapButton.onClick.AddListener(() => SubmitCommand("карта"));
+
+        if (homeButton != null)
+            homeButton.onClick.AddListener(() => SubmitCommand("пойти в таверну"));
     }
 
     private void OnTmpEndEdit(string text)

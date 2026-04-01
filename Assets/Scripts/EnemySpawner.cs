@@ -15,7 +15,7 @@ public class EnemySpawner : MonoBehaviour
     [Header("Локации")]
     public string currentLocation = "Таверна";
 
-    public bool spawnEnabled = true; 
+    public bool spawnEnabled = true;
 
     private int currentEnemyCount = 0;
     private Coroutine spawnCoroutine;
@@ -29,6 +29,29 @@ public class EnemySpawner : MonoBehaviour
     {
         currentLocation = newLocation;
         Debug.Log($"Спавнер обновил локацию: {currentLocation}");
+
+        // Здесь можно привязать врагов к конкретным локациям
+        if (newLocation == "Гнилые Топи")
+        {
+            // Опасные мутанты, Келл-ар-Торн
+        }
+        else if (newLocation == "Орлиный Утёс")
+        {
+            // Бандиты, контрабандисты
+        }
+        else if (newLocation == "Соколиный Пик")
+        {
+            // Волки, разведчики Вальгрим
+        }
+        else if (newLocation == "Красный Бор")
+        {
+            // Обычные враги
+        }
+        else if (newLocation == "Тренировочная поляна")
+        {
+            // Гоблины для тренировок
+            // Здесь враги спавнятся по умолчанию (в методе SpawnRoutine)
+        }
     }
 
     IEnumerator SpawnRoutine()
@@ -36,6 +59,8 @@ public class EnemySpawner : MonoBehaviour
         while (true)
         {
             yield return new WaitForSeconds(spawnInterval);
+
+            Debug.Log($"Проверка спавна: spawnEnabled={spawnEnabled}, location={currentLocation}, count={currentEnemyCount}, max={maxEnemies}");
 
             if (spawnEnabled && currentLocation != "Таверна" && currentEnemyCount < maxEnemies)
             {
@@ -46,6 +71,7 @@ public class EnemySpawner : MonoBehaviour
 
     void SpawnEnemy()
     {
+        Debug.Log($"Попытка спавна. spawnEnabled={spawnEnabled}, currentLocation={currentLocation}, currentEnemyCount={currentEnemyCount}, maxEnemies={maxEnemies}");
         if (!spawnEnabled) return;
 
         GameObject newEnemyPrefab = null;
@@ -74,6 +100,10 @@ public class EnemySpawner : MonoBehaviour
                 newEnemyPrefab = trollPrefab;
                 break;
 
+            case "Тренировочная поляна":  // ← ДОБАВЛЯЕМ
+                newEnemyPrefab = goblinPrefab;
+                break;
+
             default:
                 return;
         }
@@ -95,7 +125,7 @@ public class EnemySpawner : MonoBehaviour
             if (ui != null)
             {
                 ui.AddEnemy(enemy);
-                
+
                 if (enemy is Orc)
                     ui.AppendLog($"👹 В лесу появился ВОЖДЬ ОРКОВ: {enemy.enemyName}! Другие враги затаились...");
                 else

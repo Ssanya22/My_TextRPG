@@ -52,23 +52,13 @@ public static class CommandParser
         },
 
         // Перемещение
-        ["forest"] = new[] {
-            "лес", "пойти в лес", "идти в лес", "в лес", "на охоту", "отправиться в лес",
-            "хочу в лес", "пойду в лес", "схожу в лес", "в лес пойти", "лесок"
-        },
 
-        ["tavern"] = new[] {
-            "таверна", "пойти в таверну", "идти в таверну", "в таверну", "домой",
-            "вернуться в таверну", "назад", "отдыхать", "в таверну пойти"
-        },
-
-        ["mountains"] = new[] {
-    "горы", "пойти в горы", "идти в горы", "в горы", "скалы", "вершины"
-},
         ["location"] = new[] {
             "где я", "локация", "место", "где нахожусь", "текущее место",
             "где это", "что за место", "где я сейчас"
         },
+
+        ["reputation"] = new[] { "репутация", "отношение", "слава", "уважение" },
 
         // Выбор цели
         ["select"] = new[] {
@@ -83,6 +73,13 @@ public static class CommandParser
         ["skill"] = new[] {
     "улучшить", "прокачать", "скилл", "skill", "повысить",
     "атаку", "защиту", "крит"
+},
+        // ====== КОМАНДЫ НАВИГАЦИИ ======
+        ["map"] = new[] { "карта", "карту", "показать карту", "мир", "карта мира" },
+        ["location"] = new[] { "где я", "локация", "место", "где нахожусь", "текущее место" },
+        ["travel"] = new[] {
+    "пойти", "идти", "отправиться", "направиться", "двигаться",
+    "пойти в", "идти в", "пойти к", "идти к"
 },
     };
 
@@ -135,6 +132,32 @@ public static class CommandParser
 
         // 4. Определяем конкретику (этот, текущий, выбранный)
         result.IsCurrentTarget = IsCurrentTargetReference(lower);
+
+        // ====== 5. СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ TRAVEL ======
+        if (result.Action == "travel" && string.IsNullOrEmpty(result.Target))
+        {
+            // Убираем само действие из строки
+            string remaining = lower;
+
+            // Пробуем найти и удалить синоним из travel
+            foreach (var synonym in actionSynonyms["travel"])
+            {
+                if (remaining.Contains(synonym))
+                {
+                    int idx = remaining.IndexOf(synonym) + synonym.Length;
+                    remaining = remaining.Substring(idx).Trim();
+                    break;
+                }
+            }
+
+            // Убираем предлоги в начале
+            remaining = remaining.Replace("в ", "").Replace("во ", "").Replace("на ", "").Replace("к ", "").Trim();
+
+            if (!string.IsNullOrEmpty(remaining))
+            {
+                result.Target = remaining;
+            }
+        }
 
         return result;
     }

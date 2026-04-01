@@ -22,7 +22,8 @@ public class Character : MonoBehaviour
     public int magicSkill = 0;       // магия
     public int craftingSkill = 0;    // ремесло
     public int diplomacySkill = 0;   // дипломатия
-    public int skillPoints = 0;       // очки навыков для улучшения
+    public int skillPoints = 0;      // очки навыков для улучшения
+
     [Header("Текущее состояние")]
     public int health;
     public int healthPotions = 3;
@@ -33,9 +34,15 @@ public class Character : MonoBehaviour
     [Header("Гильдии")]
     public List<string> guilds = new List<string>(); // названия гильдий, где состоит
 
-    // Свойства для совместимости со старым кодом
+    [Header("Репутация")]
+    public Dictionary<Faction, int> reputation = new Dictionary<Faction, int>();
+
+    // Свойства
     public int maxHealth => 10 + (constitution - 10) / 2;
     public int StrengthModifier => (strength - 10) / 2;
+    public int DexterityModifier => (dexterity - 10) / 2;
+    public int IntelligenceModifier => (intelligence - 10) / 2;
+    public int CharismaModifier => (charisma - 10) / 2;
 
     void Start()
     {
@@ -44,11 +51,49 @@ public class Character : MonoBehaviour
 
         if (experience == null)
             experience = GetComponent<Experience>();
+
+        // ====== ИНИЦИАЛИЗАЦИЯ РЕПУТАЦИИ ======
+        foreach (Faction f in System.Enum.GetValues(typeof(Faction)))
+        {
+            reputation[f] = 0;
+        }
+
+        // Стартовая репутация с Велирами
+        reputation[Faction.Veliry] = 0;
+        Debug.Log($"📈 Начальная репутация с Велирами: 0");
+    }
+
+    // ====== МЕТОДЫ ДЛЯ РЕПУТАЦИИ ======
+
+    public void AddReputation(Faction faction, int amount)
+    {
+        if (!reputation.ContainsKey(faction))
+            reputation[faction] = 0;
+
+        reputation[faction] += amount;
+        reputation[faction] = Mathf.Clamp(reputation[faction], -100, 100);
+
+        Debug.Log($"📈 Репутация с {faction}: {reputation[faction]} ({(amount > 0 ? "+" : "")}{amount})");
+    }
+
+    public int GetReputation(Faction faction)
+    {
+        return reputation.ContainsKey(faction) ? reputation[faction] : 0;
+    }
+
+    public string GetReputationString()
+    {
+        string result = "";
+        foreach (var pair in reputation)
+        {
+            string icon = pair.Value > 0 ? "👍" : (pair.Value < 0 ? "👎" : "🤝");
+            result += $"{icon} {pair.Key}: {pair.Value}\n";
+        }
+        return result;
     }
 
     // ====== МЕТОДЫ ДЛЯ НАВЫКОВ ======
 
-    // Увеличить навык от действия
     public void ImproveSkill(string skillName, int amount = 1)
     {
         switch (skillName.ToLower())
@@ -120,7 +165,7 @@ public class Character : MonoBehaviour
             case "constitution":
             case "выносливость":
                 constitution += 1;
-                health = maxHealth;  // ← ВАЖНО!
+                health = maxHealth;
                 break;
 
             case "торговля":
@@ -143,7 +188,8 @@ public class Character : MonoBehaviour
         return true;
     }
 
-    // Получить название на основе навыков (кто ты в глазах мира)
+    // ====== ПОЛУЧЕНИЕ ТИТУЛА ======
+
     public string GetReputationTitle()
     {
         var skills = new Dictionary<string, int>
@@ -197,41 +243,19 @@ public class Character : MonoBehaviour
                 return "авантюрист";
         }
     }
+
+    // ====== БОЕВЫЕ МЕТОДЫ ======
+
     public int GetDodgeChance()
     {
-        // 5% + 1% за каждые 2 очка ловкости сверх 10
         return 5 + Mathf.Max(0, (dexterity - 10) / 2);
     }
-    public bool IsInStealth()
-    {
-        // Например, если скрытность > 30, можно выбирать цель
-        return stealthSkill > 30;
-    }
-    // Полная статистика для UI
-    public string GetStatsLine()
-    {
-        return $"HP: {health}/{maxHealth} | СИЛ: {strength} | ЛОВ: {dexterity} | Зелья: {healthPotions}";
-    }
-    public int GetPriceModifier(int basePrice)
-    {
-        float charismaBonus = 1.0f - ((charisma - 10) * 0.02f); // 10 = 100%, 20 = 80% цены
-        return Mathf.RoundToInt(basePrice * charismaBonus);
-    }
-    public string GetSkillsLine()
-    {
-        return $"⚔️ {combatSkill} | 🪙 {tradingSkill} | 👤 {stealthSkill} | 🔮 {magicSkill} | 🔨 {craftingSkill} | 🤝 {diplomacySkill}";
-    }
-
-    // ====== БОЕВЫЕ МЕТОДЫ (оставляем как есть) ======
 
     public string Attack()
     {
         int d20 = Random.Range(1, 21);
         int combatBonus = combatSkill / 10;
-
-        // ⚔️ Урон теперь зависит от силы!
-        int strengthBonus = (strength - 10) / 2;  // +3 при силе 16
-
+        int strengthBonus = (strength - 10) / 2;
         int total = d20 + combatBonus + strengthBonus;
 
         bool isCrit = Random.Range(0, 100) < (combatSkill / 2);
@@ -243,7 +267,6 @@ public class Character : MonoBehaviour
 
     public string TakeDamage(int amount)
     {
-        // Шанс увернуться от атаки
         if (Random.Range(0, 100) < GetDodgeChance())
         {
             return "💨 Ты увернулся от атаки!";
@@ -256,6 +279,24 @@ public class Character : MonoBehaviour
         if (health < 0) health = 0;
 
         return $"🛡️ Получено {reduced} урона (было {amount}, защита снизила на {reduction}). Осталось HP: {health}";
+    }
+
+    // ====== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ======
+
+    public string GetStatsLine()
+    {
+        return $"HP: {health}/{maxHealth} | СИЛ: {strength} | ЛОВ: {dexterity} | Зелья: {healthPotions}";
+    }
+
+    public string GetSkillsLine()
+    {
+        return $"⚔️ {combatSkill} | 🪙 {tradingSkill} | 👤 {stealthSkill} | 🔮 {magicSkill} | 🔨 {craftingSkill} | 🤝 {diplomacySkill}";
+    }
+
+    public int GetPriceModifier(int basePrice)
+    {
+        float charismaBonus = 1.0f - ((charisma - 10) * 0.02f);
+        return Mathf.RoundToInt(basePrice * charismaBonus);
     }
 
     public bool IsDetectedBy(Enemy enemy)
@@ -271,30 +312,14 @@ public class Character : MonoBehaviour
 
         float detectionChance = baseChance * enemyFactor * stealthFactor;
 
-        // Учитываем количество врагов через UIManager
-        UIManager ui = FindFirstObjectByType<UIManager>();  // ← ИЗМЕНЕНО
+        // Учитываем количество врагов
+        UIManager ui = FindFirstObjectByType<UIManager>();
         if (ui != null)
         {
-            int enemyCount = ui.GetEnemyCount();  // ← используем публичный метод
+            int enemyCount = ui.GetEnemyCount();
             detectionChance *= (1 + (enemyCount * 0.1f));
         }
 
-        return Random.value < detectionChance;
-    }
-
-    public float GetDetectionChance(Enemy enemy)
-    {
-        float baseChance = 0.3f;
-        float stealthFactor = Mathf.Max(0, 1 - (stealthSkill / 100f));
-        float enemyFactor = enemy.strength / 20f;
-
-        UIManager ui = FindFirstObjectByType<UIManager>();  // ← ИЗМЕНЕНО
-        int enemyCount = 0;
-        if (ui != null)
-        {
-            enemyCount = ui.GetEnemyCount();  // ← используем публичный метод
-        }
-
-        return baseChance * enemyFactor * stealthFactor * (1 + (enemyCount * 0.1f));
+        return UnityEngine.Random.value < detectionChance;
     }
 }
