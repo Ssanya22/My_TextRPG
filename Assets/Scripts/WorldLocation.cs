@@ -10,6 +10,7 @@ public class WorldLocation
     public string type;                  // "village", "city", "forest", "mountain", "dungeon", "shrine"
     public List<string> connections;     // куда можно пойти (id локаций)
     public List<string> enemies;         // какие враги тут водятся
+    public List<string> npcs;            // список NPC
     public int reputationRequired;       // какая репутация нужна для входа
     public int maxReputation;            // максимальная репутация, которую можно получить в этой локации
     public bool isUnlocked;              // открыта ли локация

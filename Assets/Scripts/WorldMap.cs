@@ -33,7 +33,8 @@ public class WorldMap : MonoBehaviour
             enemies = new List<string>(),
             reputationRequired = 0,
             isUnlocked = true,
-            isDangerous = false
+            isDangerous = false,
+            npcs = new List<string> { "tverdislav" }  // ← Твердислав
         });
 
         // Лунный Шёпот — деревня знахарей
@@ -48,7 +49,8 @@ public class WorldMap : MonoBehaviour
             enemies = new List<string>(),
             reputationRequired = 5,
             isUnlocked = false,
-            isDangerous = false
+            isDangerous = false,
+            npcs = new List<string> { "milana" }  // ← Милана (пока заглушка)
         });
 
         // Орлиный Утёс — торговый форпост
@@ -110,7 +112,8 @@ public class WorldMap : MonoBehaviour
             reputationRequired = 25,
             maxReputation = 40,
             isUnlocked = false,
-            isDangerous = true
+            isDangerous = true,
+            npcs = new List<string> { "vorotyslav" }  // ← Воротыслав (пока заглушка)
         });
 
         // Источник Забвения — таинственное озеро
@@ -141,7 +144,8 @@ public class WorldMap : MonoBehaviour
             reputationRequired = 40,
             maxReputation = 100,
             isUnlocked = false,
-            isDangerous = true
+            isDangerous = true,
+            npcs = new List<string> { "kell_artorn" }  // ← Келл-ар-Торн (пока заглушка)
         });
 
         // Тренировочная поляна — временная боевая зона

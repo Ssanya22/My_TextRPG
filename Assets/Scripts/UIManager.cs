@@ -39,6 +39,9 @@ public class UIManager : MonoBehaviour
     private ScrollRect _scrollRect;
     private RectTransform _contentRect;
     private RectTransform _logRect;
+    private DialogueManager dialogueManager;
+    private NPC currentNPC;
+    private DialogueNode currentDialogue;
 
 
 
@@ -98,6 +101,7 @@ public class UIManager : MonoBehaviour
 
         if (inputFieldTMP != null) inputFieldTMP.ActivateInputField();
         if (inputFieldLegacy != null) inputFieldLegacy.ActivateInputField();
+        dialogueManager = FindFirstObjectByType<DialogueManager>();
 
         modeSelected = false;
 
@@ -190,6 +194,22 @@ public class UIManager : MonoBehaviour
                 AppendLog("⚰️ Ты мёртв. Напиши 'воскреснуть' чтобы продолжить.");
             }
             return;
+        }
+
+        // ====== ЕСЛИ ИДЁТ ДИАЛОГ ======
+        if (currentDialogue != null)
+        {
+            string lower = cmd.ToLowerInvariant();
+            if (int.TryParse(lower, out int choiceIndex) && choiceIndex >= 1 && choiceIndex <= currentDialogue.options.Count)
+            {
+                SelectDialogueOption(choiceIndex - 1);
+                return;
+            }
+            else
+            {
+                AppendLog("❓ Напиши номер ответа (например, '1')");
+                return;
+            }
         }
         // ИСПОЛЬЗУЕМ НОВЫЙ ПАРСЕР
         ParsedCommand parsed = CommandParser.Parse(cmd);
@@ -356,6 +376,14 @@ public class UIManager : MonoBehaviour
             case "пойти":
             case "идти":
                 TravelTo(parsed);
+                break;
+            // ====== КОМАНДЫ ДЛЯ NPC ======
+            case "whoshere":
+                ShowNPCsHere();
+                break;
+
+            case "talk":
+                TalkToNPC(parsed);
                 break;
             default:
                 AppendLog($"❓ Не знаю, что делать с командой '{cmd}'. Попробуй по-другому.");
@@ -1063,6 +1091,57 @@ public class UIManager : MonoBehaviour
         AppendLog(result);
     }
 
+    private void TalkToNPC(ParsedCommand parsed)
+    {
+        if (string.IsNullOrEmpty(parsed.Target))
+        {
+            AppendLog("С кем поговорить? Например: 'поговорить с твердиславом'");
+            return;
+        }
+
+        string npcName = parsed.Target.ToLower();
+
+        // Находим NPC в текущей локации
+        WorldMap worldMap = FindFirstObjectByType<WorldMap>();
+        if (worldMap == null)
+        {
+            AppendLog("❌ Карта мира не найдена!");
+            return;
+        }
+
+        var currentLoc = worldMap.GetCurrentLocation();
+        if (currentLoc == null || currentLoc.npcs == null)
+        {
+            AppendLog("Здесь никого нет.");
+            return;
+        }
+
+        NPC foundNPC = null;
+        foreach (string npcId in currentLoc.npcs)
+        {
+            NPC npc = dialogueManager.GetNPC(npcId);
+            if (npc != null && npc.name.ToLower().Contains(npcName))
+            {
+                foundNPC = npc;
+                break;
+            }
+        }
+
+        if (foundNPC == null)
+        {
+            AppendLog($"Здесь нет никого с именем '{parsed.Target}'.");
+            return;
+        }
+
+        if (dialogueManager == null)
+        {
+            AppendLog("❌ Система диалогов не найдена!");
+            return;
+        }
+
+        dialogueManager.StartDialogue(foundNPC);
+    }
+
     // ====== НАСТРОЙКА БЫСТРЫХ КНОПОК ======
     private void SetupButtons()
     {
@@ -1080,6 +1159,127 @@ public class UIManager : MonoBehaviour
 
         if (homeButton != null)
             homeButton.onClick.AddListener(() => SubmitCommand("пойти в таверну"));
+    }
+
+    // ====== ДИАЛОГИ ======
+    public void StartDialogue(NPC npc, DialogueNode startNode)
+    {
+        currentNPC = npc;
+        currentDialogue = startNode;
+        ShowDialogue();
+    }
+
+    private void ShowDialogue()
+    {
+        if (currentDialogue == null) return;
+
+        AppendLog($"\n═══════ {currentNPC.name} ═══════");
+        AppendLog(currentDialogue.npcText);
+
+        if (currentDialogue.options != null && currentDialogue.options.Count > 0)
+        {
+            AppendLog("\nВарианты:");
+            for (int i = 0; i < currentDialogue.options.Count; i++)
+            {
+                var opt = currentDialogue.options[i];
+                string req = opt.requiredReputation > 0 ? $" (нужна репутация {opt.requiredReputation})" : "";
+                AppendLog($"{i + 1}. {opt.text}{req}");
+            }
+            AppendLog("\nНапиши номер ответа (например, '1')");
+        }
+        else
+        {
+            EndDialogue();
+        }
+    }
+
+    public void SelectDialogueOption(int index)
+    {
+        if (currentDialogue == null || currentDialogue.options == null || index >= currentDialogue.options.Count)
+        {
+            AppendLog("❌ Неверный выбор");
+            return;
+        }
+
+        var option = currentDialogue.options[index];
+
+        // Проверка репутации
+        if (option.requiredReputation > 0 && character.GetReputation(Faction.Veliry) < option.requiredReputation)
+        {
+            AppendLog($"❌ Нужна репутация {option.requiredReputation} с Велирами");
+            ShowDialogue();
+            return;
+        }
+
+        // Применяем эффект
+        if (!string.IsNullOrEmpty(option.effect))
+        {
+            switch (option.effect)
+            {
+                case "add_reputation":
+                    Faction faction = (Faction)System.Enum.Parse(typeof(Faction), option.target);
+                    character.AddReputation(faction, option.amount);
+                    break;
+                case "open_location":
+                    WorldMap worldMap = FindFirstObjectByType<WorldMap>();
+                    if (worldMap != null)
+                        worldMap.UnlockLocation(option.target);
+                    break;
+            }
+        }
+
+        // Показываем ответ NPC
+        if (!string.IsNullOrEmpty(option.responseText))
+        {
+            AppendLog($"\n{currentNPC.name}: {option.responseText}");
+        }
+
+        // Переходим к следующему диалогу или завершаем
+        if (!string.IsNullOrEmpty(option.nextDialogueId))
+        {
+            currentDialogue = dialogueManager.GetDialogue(option.nextDialogueId);
+            ShowDialogue();
+        }
+        else
+        {
+            EndDialogue();
+        }
+    }
+
+    private void EndDialogue()
+    {
+        AppendLog("\n═══════ КОНЕЦ ДИАЛОГА ═══════");
+        currentNPC = null;
+        currentDialogue = null;
+    }
+
+    // ====== NPC ======
+    private void ShowNPCsHere()
+    {
+        WorldMap worldMap = FindFirstObjectByType<WorldMap>();
+        if (worldMap == null)
+        {
+            AppendLog("❌ Карта мира не найдена!");
+            return;
+        }
+
+        var currentLoc = worldMap.GetCurrentLocation();
+        if (currentLoc == null || currentLoc.npcs == null || currentLoc.npcs.Count == 0)
+        {
+            AppendLog("Здесь никого нет.");
+            return;
+        }
+
+        AppendLog($"👥 Кто здесь ({currentLoc.name}):");
+        foreach (string npcId in currentLoc.npcs)
+        {
+            NPC npc = dialogueManager.GetNPC(npcId);
+            if (npc != null)
+            {
+                AppendLog($"   • {npc.name}");
+            }
+        }
+        AppendLog("\nНапиши 'поговорить с [имя]' чтобы начать разговор.");
     }
 
     private void OnTmpEndEdit(string text)
